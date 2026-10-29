@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+data/
+artifacts/
+*.log
+lux-docs.html
+competition.html
+
+.publish-repo/
+*.zip

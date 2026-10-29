@@ -1,0 +1,16 @@
+{
+  "testedAt": "2026-10-29T13:37:46.637Z",
+  "errors": [],
+  "checks": [
+    "desktop render",
+    "trial dialog",
+    "local vote persistence",
+    "category filter",
+    "gallery toggle",
+    "about dialog",
+    "generation failure feedback",
+    "mobile 375px",
+    "landscape 812px",
+    "reduced motion"
+  ]
+}

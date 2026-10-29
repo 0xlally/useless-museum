@@ -1,0 +1,17 @@
+[
+  {
+    "id": "70ed1401-cf06-443a-a2b2-662e95748a82",
+    "taskId": "4477428",
+    "prompt": "A single absurd precision brass shadow length regulator, a vintage scientific instrument with a large upright circular brass hoop, fine ruler, screw clamp and small black shadow on a cream cylindrical plinth. Standalone product, physically coherent, beautiful brass and frosted glass, museum collectible, no text, no background, PBR materials.",
+    "version": "G1",
+    "status": "succeeded",
+    "createdAt": "2026-10-29T13:28:45.235Z",
+    "updatedAt": "2026-10-29T13:33:16.979Z",
+    "outputs": [],
+    "lastChecked": 1793280796822,
+    "error": null,
+    "cached": true,
+    "question": "怎么防止影子在下午偷偷变长？",
+    "title": "影子限长器"
+  }
+]
