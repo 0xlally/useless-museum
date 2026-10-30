@@ -1,11 +1,11 @@
 import {
   createIcons, ArrowUpRight, ArrowRight, ArrowLeft, Plus, Minus, RotateCw, MoveUpRight, X, Check, Copy, Box,
-  Grid2X2, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, VolumeX, ExternalLink, LoaderCircle, Radio, Search,
+  Grid2X2, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, VolumeX, ExternalLink, LoaderCircle, Radio, Search, Maximize,
 } from 'lucide';
 
 const icons = {
   ArrowUpRight, ArrowRight, ArrowLeft, Plus, Minus, RotateCw, MoveUpRight, X, Check, Copy, Box, Grid2X2,
-  SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, VolumeX, ExternalLink, LoaderCircle, Radio, Search,
+  SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, VolumeX, ExternalLink, LoaderCircle, Radio, Search, Maximize,
 };
 
 // lucide normalises data-lucide names with toPascalCase ("ArrowUpRight" -> "Arrowupright"), so register that form too.

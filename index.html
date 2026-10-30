@@ -73,6 +73,9 @@
         <div class="spotlight-cone" aria-hidden="true"></div>
         <button type="button" class="peek peek-prev" id="peek-prev" aria-label="上一件展品" hidden></button>
         <button type="button" class="peek peek-next" id="peek-next" aria-label="下一件展品" hidden></button>
+        <aside class="inspector" id="inspector" aria-label="模型检视"></aside>
+        <div class="gal-tip" id="gal-tip" aria-hidden="true"></div>
+        <aside class="gal-card" id="gal-card" aria-label="展品介绍" hidden></aside>
         <div class="hint" id="key-hint" aria-hidden="true"><kbd>[</kbd><kbd>]</kbd> 切换展品 <span>·</span> 拖动旋转</div>
         <div class="stage-loader" id="stage-loader" hidden><span class="stage-loader-bar"><i id="stage-loader-fill"></i></span><span>载入模型</span></div>
         <div class="scene-caption"><span id="asset-status" role="status">交互概念模型 · 非 AI 生成</span></div>
@@ -85,6 +88,7 @@
             <button type="button" id="zoom-out" aria-label="缩小"><i data-lucide="Minus" aria-hidden="true"></i></button>
             <button type="button" id="zoom-in" aria-label="放大"><i data-lucide="Plus" aria-hidden="true"></i></button>
             <button type="button" id="auto-rotate" aria-label="自动旋转" aria-pressed="false"><i data-lucide="RotateCw" aria-hidden="true"></i></button>
+            <button type="button" id="fullscreen" aria-label="全屏" aria-pressed="false"><i data-lucide="Maximize" aria-hidden="true"></i></button>
           </div>
         </div>
         <span class="stage-watermark" aria-hidden="true">USELESS,<br>PRICELESS.</span>

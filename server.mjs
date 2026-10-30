@@ -81,7 +81,7 @@ export function planInstrument(question) {
 }
 function publicJob(j) {
   return { id: j.id, prompt: j.prompt, question: j.question || j.prompt, title: j.title || '荒诞科学仪器', status: j.status, createdAt: j.createdAt, updatedAt: j.updatedAt,
-    provider: 'Aholo Lux3D', version: j.version, modelUrl: j.cached ? `/models/${j.id}.glb` : null,
+    provider: 'Aholo Lux3D', version: j.version, officialTaskId: j.taskId, modelUrl: j.cached ? `/models/${j.id}.glb` : null,
     downloadUrl: j.outputs?.some(u => /\.zip(?:\?|$)/i.test(u)) ? `/api/generations/${j.id}/download?format=zip` : j.cached ? `/models/${j.id}.glb` : null,
     error: j.error || null, pollAfterMs: 6000, cached: Boolean(j.cached) };
 }

@@ -62,6 +62,38 @@ function bindVoting(e) {
   });
 }
 
+const fmt = n => Number(n).toLocaleString('en-US');
+const fmtBytes = b => (b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : b >= 1024 ? Math.round(b / 1024) + ' KB' : b + ' B');
+
+/** Reads only what the viewer actually measured from the loaded geometry; concept models are labelled as such. */
+function renderInspector(info) {
+  const el = $('#inspector');
+  if (!el || !info) return;
+  const e = state.current, real = info.real;
+  state.inspect = info;
+  const row = (k, v, cls = '') => `<div class="${cls}"><dt>${k}</dt><dd>${v}</dd></div>`;
+  const tex = info.textures?.length ? info.textures.map(t => `${t.label} ${t.w}²`).join(' · ') : '—';
+  el.innerHTML = `
+    <div class="insp-head"><span class="insp-dot ${real ? 'live' : ''}"></span>${real ? 'LUX3D ASSET' : 'CONCEPT / PROCEDURAL'}</div>
+    <dl>
+      ${real ? row('TASK', esc(e.officialTaskId || '—')) : ''}
+      ${real ? row('MODEL', esc(e.version || 'G1')) : ''}
+      ${row('TRIS', fmt(info.tris))}
+      ${row('VERTS', fmt(info.verts))}
+      ${real ? row('SIZE', info.bytes ? fmtBytes(info.bytes) : '—') : ''}
+      ${row('MAPS', esc(tex))}
+    </dl>
+    <div class="insp-modes" role="group" aria-label="渲染模式">
+      ${[['shaded', '着色'], ['wire', '线框'], ['normal', '法线'], ['albedo', '贴图']].map(([k, t]) => `<button type="button" data-mode="${k}" aria-pressed="${k === 'shaded'}">${t}</button>`).join('')}
+    </div>`;
+  $$('[data-mode]', el).forEach(b => {
+    b.onclick = () => {
+      state.scene?.setViewMode(b.dataset.mode);
+      $$('[data-mode]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    };
+  });
+}
+
 function renderInfo() {
   const e = state.current;
   const real = Boolean(e.modelUrl);
@@ -74,6 +106,7 @@ function renderInfo() {
     <dl class="specs">
       <div><dt>构成材料</dt><dd>${esc(e.spec)}</dd></div>
       <div><dt>资产来源</dt><dd>${real ? 'Aholo Lux3D 真实生成' : '程序化概念模型'}</dd></div>
+      ${real && e.officialTaskId ? `<div><dt>官方任务</dt><dd class="mono">#${esc(e.officialTaskId)} · ${esc(e.version || 'G1')}</dd></div>` : ''}
       <div><dt>实用指数</dt><dd><span class="zero">0</span> / 100 <span class="tiny">经过非常不严谨的测定</span></dd></div>
     </dl>
     <button type="button" class="btn btn-fill trial" id="try">试用一下 ${icon('ArrowUpRight')}</button>
@@ -164,6 +197,7 @@ function updatePeek() {
 
 function step(delta) {
   if (state.mode === 'gallery') {
+    closeGalleryCard();
     const row = state.scene?.walk(delta);
     if (row !== undefined) $('#stage-number').textContent = 'GALLERY / ' + String(row + 1).padStart(2, '0');
     return;
@@ -177,6 +211,7 @@ function step(delta) {
 /* -------------------------------------------------------------- navigation */
 function choose(e, { updateHash = true } = {}) {
   if (!e) return;
+  const _c = $('#gal-card'); if (_c && !_c.hidden) { _c.hidden = true; _c.classList.remove('open'); state.galIndex = null; state.scene?.setFocus(null); }
   state.current = e;
   state.mode = 'single';
   $('#stage-number').textContent = 'NO. ' + e.no;
@@ -191,6 +226,53 @@ function choose(e, { updateHash = true } = {}) {
     setTimeout(swap, 380);
   }
   if (updateHash) history.replaceState(null, '', '#exhibit=' + encodeURIComponent(e.id));
+}
+
+/* ---- gallery: spotlit exhibit card + fullscreen ---- */
+function openGalleryCard(i) {
+  const e = exhibits[i], card = $('#gal-card');
+  if (!e || !card) return;
+  state.galIndex = i;
+  const real = Boolean(e.modelUrl);
+  card.innerHTML = `
+    <button type="button" class="gal-close" id="gal-close" aria-label="关闭介绍">${icon('X')}</button>
+    <p class="gal-no">NO. ${esc(e.no)} <span>${esc(e.category)}</span></p>
+    <p class="gal-en">${esc(e.en)}</p>
+    <h3>${esc(e.name)}</h3>
+    <blockquote>“${esc(e.question)}”</blockquote>
+    <p class="gal-desc">${esc(e.desc)}</p>
+    <dl>
+      <div><dt>材料</dt><dd>${esc(e.spec)}</dd></div>
+      <div><dt>来源</dt><dd>${real ? 'Aholo Lux3D ' + (e.officialTaskId ? '#' + esc(e.officialTaskId) : '') : '程序化概念模型'}</dd></div>
+      <div><dt>实用指数</dt><dd><b>0</b> / 100</dd></div>
+    </dl>
+    <button type="button" class="btn btn-fill" id="gal-enter">进入鉴赏 ${icon('ArrowUpRight')}</button>`;
+  card.hidden = false;
+  requestAnimationFrame(() => card.classList.add('open'));
+  $('#gal-close').onclick = closeGalleryCard;
+  $('#gal-enter').onclick = () => { closeGalleryCard(); exitFullscreenIfAny(); choose(e); };
+  state.scene?.flyTo(i);
+  state.scene?.setFocus(i);
+  refreshIcons();
+}
+
+function closeGalleryCard() {
+  const card = $('#gal-card');
+  if (!card || card.hidden) return;
+  card.classList.remove('open');
+  setTimeout(() => { card.hidden = true; }, 380);
+  state.galIndex = null;
+  state.scene?.setFocus(null);
+  if (state.scene?.mode === 'gallery') state.scene.goRow(state.scene.row);
+}
+
+function exitFullscreenIfAny() { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+
+function toggleFullscreen() {
+  const stage = $('.stage');
+  if (document.fullscreenElement) { exitFullscreenIfAny(); return; }
+  if (!stage.requestFullscreen) { stage.classList.toggle('pseudo-full'); document.body.classList.toggle('no-scroll'); return; }
+  stage.requestFullscreen().catch(() => { stage.classList.toggle('pseudo-full'); document.body.classList.toggle('no-scroll'); });
 }
 
 function enterGallery() {
@@ -218,15 +300,15 @@ function applyJobs() {
   for (const j of state.jobs) {
     if (!j.modelUrl || !isDone(j)) continue;
     let e = exhibits.find(x => x.taskId === j.id);
-    if (e) { e.modelUrl = j.modelUrl; continue; }
+    if (e) { Object.assign(e, { modelUrl: j.modelUrl, officialTaskId: j.officialTaskId, version: j.version }); continue; }
     const text = j.prompt || '';
     const preset = exhibits.find(x => x.question === j.question) || (/shadow length regulator|影子限长/.test(text) ? exhibits[0] : null);
     if (preset && !preset.taskId) {
-      Object.assign(preset, { taskId: j.id, modelUrl: j.modelUrl, prompt: j.prompt });
+      Object.assign(preset, { taskId: j.id, modelUrl: j.modelUrl, prompt: j.prompt, officialTaskId: j.officialTaskId, version: j.version });
       if (state.current.id === preset.id) refreshCurrent = true;
     } else {
       e = makeConcept(j.question || j.prompt);
-      Object.assign(e, { id: j.id, no: String(exhibits.length + 1).padStart(3, '0'), name: j.title || '观众的无用发明', taskId: j.id, modelUrl: j.modelUrl, prompt: j.prompt });
+      Object.assign(e, { id: j.id, no: String(exhibits.length + 1).padStart(3, '0'), name: j.title || '观众的无用发明', taskId: j.id, modelUrl: j.modelUrl, prompt: j.prompt, officialTaskId: j.officialTaskId, version: j.version });
       exhibits.push(e);
     }
   }
@@ -238,6 +320,22 @@ function applyJobs() {
   renderJobs();
 }
 
+const PIPE = ['提交任务', '排队', '生成', '缓存模型', '入藏'];
+function pipeStage(j) {
+  if (j.modelUrl) return 5;
+  if (j.status === 'succeeded') return 3;
+  if (j.status === 'processing') return 2;
+  if (j.status === 'queued') return 1;
+  return 0;
+}
+function pipelineMarkup(j) {
+  const at = pipeStage(j), bad = isFailed(j);
+  return `<ol class="pipe" aria-label="生成进度">${PIPE.map((t, i) => {
+    const cls = bad && i === at ? 'bad' : i < at ? 'done' : i === at ? 'now' : '';
+    return `<li class="${cls}"><i></i><span>${t}</span></li>`;
+  }).join('')}</ol>`;
+}
+
 function jobMarkup(j) {
   const status = STATUS_LABEL[j.status] || j.status;
   const active = isActive(j);
@@ -245,7 +343,7 @@ function jobMarkup(j) {
     ? `<button type="button" class="btn btn-outline" data-job="${esc(j.id)}">查看生成展品 ${icon('ArrowUpRight')}</button>`
     : active ? `<span class="job-wait"><i class="spinner" aria-hidden="true"></i><span data-elapsed="${esc(j.createdAt || '')}">${j.createdAt ? formatElapsed(j.createdAt) : ''}</span></span>`
       : `<span class="job-wait">${isFailed(j) ? '生成未完成' : '处理中'}</span>`;
-  return `<div class="job"><div><span class="pill ${esc(j.status)}">${esc(status)}</span><small> · LUX3D</small><p>${esc(j.title ? j.title + ' · ' : '')}${esc(j.question || j.prompt)}</p><code>${esc(j.id)}</code>${j.error ? `<p class="error">${esc(j.error?.message || j.error)}</p>` : ''}</div>${action}</div>`;
+  return `<div class="job"><div><span class="pill ${esc(j.status)}">${esc(status)}</span><small> · LUX3D</small><p>${esc(j.title ? j.title + ' · ' : '')}${esc(j.question || j.prompt)}</p><code>${j.officialTaskId ? 'LUX3D #' + esc(j.officialTaskId) + ' · ' + esc(j.version || 'G1') + ' · ' : ''}${esc(j.id)}</code>${pipelineMarkup(j)}${j.error ? `<p class="error">${esc(j.error?.message || j.error)}</p>` : ''}</div>${action}</div>`;
 }
 
 function renderJobs() {
@@ -388,6 +486,16 @@ function showKeyHint() {
 function bindChrome() {
   $('#single-view').onclick = () => choose(state.current);
   $('#gallery-view').onclick = enterGallery;
+  $('#fullscreen').onclick = toggleFullscreen;
+  document.addEventListener('fullscreenchange', () => {
+    const on = Boolean(document.fullscreenElement);
+    $('#fullscreen').setAttribute('aria-pressed', String(on));
+    $('#fullscreen').setAttribute('aria-label', on ? '退出全屏' : '全屏');
+    requestAnimationFrame(() => state.scene?.resize());
+  });
+  document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape') { closeGalleryCard(); $('.stage').classList.remove('pseudo-full'); document.body.classList.remove('no-scroll'); state.scene?.resize(); }
+  });
   $('#rotate-left').onclick = () => state.scene?.rotate(-1);
   $('#rotate-right').onclick = () => state.scene?.rotate(1);
   $('#zoom-in').onclick = () => state.scene?.zoom(.85);
@@ -482,7 +590,17 @@ function init() {
     state.scene = new MuseumScene($('#scene'), {
       onStatus: text => { $('#asset-status').textContent = text; },
       onProgress: setProgress,
-      onPick: i => choose(exhibits[i]),
+      onPick: i => { if (i < 0) closeGalleryCard(); else openGalleryCard(i); },
+      onHover: i => {
+        const tip = $('#gal-tip');
+        if (!tip) return;
+        if (i < 0 || state.galIndex != null) { tip.classList.remove('on'); return; }
+        const e = exhibits[i];
+        tip.innerHTML = `<small>NO. ${esc(e.no)}</small><b>${esc(e.name)}</b>`;
+        tip.classList.add('on');
+      },
+      onRow: (r, n) => { $('#stage-number').textContent = 'GALLERY / ' + String(r + 1).padStart(2, '0') + ' · ' + String(n).padStart(2, '0'); },
+      onModel: renderInspector,
       onSnapshot: (exhibit, url) => { state.thumbs.set(exhibit.id, url); renderShelf(); updatePeek(); },
     });
     if (state.mode === 'gallery') enterGallery(); else state.scene.show(state.current);
