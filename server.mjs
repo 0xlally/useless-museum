@@ -2,7 +2,7 @@ import http from 'node:http';
 import { readFile, writeFile, mkdir, rename, stat, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 // Read secrets only on the server. Never return process.env or upstream credentials.
@@ -15,7 +15,8 @@ try {
 } catch (e) { if (e.code !== 'ENOENT') throw e; }
 const DATA = path.join(ROOT, 'data');
 const MODELS = path.join(DATA, 'models');
-await mkdir(MODELS, { recursive: true });
+const WEB_MODELS = path.join(MODELS, 'web');
+await mkdir(WEB_MODELS, { recursive: true });
 const jobs = new Map();
 try {
   const saved = JSON.parse(await readFile(path.join(DATA, 'generations.json'), 'utf8'));
@@ -33,6 +34,23 @@ function persist() {
 async function audit(event, detail = {}) {
   const { appendFile } = await import('node:fs/promises');
   await appendFile(path.join(DATA, 'audit.jsonl'), JSON.stringify({ at: new Date().toISOString(), event, ...detail }) + '\n');
+}
+const digest = buffer => createHash('sha256').update(buffer).digest('hex');
+/** Older cached jobs predate checksumming; fill in the evidence without touching the model bytes. */
+async function backfillAssets() {
+  let changed = false;
+  for (const j of jobs.values()) {
+    if (!j.cached) continue;
+    const ext = j.ext || 'glb';
+    const file = path.join(MODELS, `${j.id}.${ext}`);
+    try {
+      const [buffer, info] = await Promise.all([readFile(file), stat(file)]);
+      if (j.bytes !== buffer.length) { j.bytes = buffer.length; changed = true; }
+      if (!j.sha256) { j.sha256 = digest(buffer); changed = true; }
+      if (!j.cachedAt) { j.cachedAt = info.mtime.toISOString(); changed = true; }
+    } catch { /* a missing cache file is reported by modelUrl checks, not by startup */ }
+  }
+  if (changed) await persist();
 }
 function fail(status, code, message) { return Object.assign(new Error(message), { status, code }); }
 function configured() { return Boolean(process.env.LUX3D_API_KEY?.trim()); }
@@ -80,9 +98,12 @@ export function planInstrument(question) {
   return found ? { title: found[1], brief: found[2] } : { title: '小事转换仪', brief: 'invent a distinct tangible mechanical solution tailored to the human problem, with a clear functional metaphor, one coherent connected silhouette, an expressive main mechanism, a stable base and one tactile adjustment control; choose your own silhouette rather than a generic ring' };
 }
 function publicJob(j) {
+  const ext = j.ext || 'glb';
   return { id: j.id, prompt: j.prompt, question: j.question || j.prompt, title: j.title || '荒诞科学仪器', status: j.status, createdAt: j.createdAt, updatedAt: j.updatedAt,
-    provider: 'Aholo Lux3D', version: j.version, officialTaskId: j.taskId, modelUrl: j.cached ? `/models/${j.id}.glb` : null,
-    downloadUrl: j.outputs?.some(u => /\.zip(?:\?|$)/i.test(u)) ? `/api/generations/${j.id}/download?format=zip` : j.cached ? `/models/${j.id}.glb` : null,
+    provider: 'Aholo Lux3D', version: j.version, officialTaskId: j.taskId, modelUrl: j.cached ? `/models/${j.id}.${ext}` : null,
+    kind: j.kind || 'text-to-3d', parentId: j.parentId || null, variant: j.variant || null, faceCount: j.faceCount || null, enablePbr: j.enablePbr ?? null, style: j.style || null,
+    assetBytes: j.bytes || null, assetSha256: j.sha256 || null, cachedAt: j.cachedAt || null,
+    downloadUrl: j.outputs?.some(u => /\.zip(?:\?|$)/i.test(u)) ? `/api/generations/${j.id}/download?format=zip` : j.cached ? `/api/generations/${j.id}/download?format=glb` : null,
     error: j.error || null, pollAfterMs: 6000, cached: Boolean(j.cached) };
 }
 function safeAsset(value) {
@@ -121,15 +142,28 @@ async function refresh(j) {
     j.error = null;
     j.outputs = (Array.isArray(d.outputs) ? d.outputs : []).map(o => o?.content).filter(u => typeof u === 'string' && /^https:\/\//.test(u));
     if (j.status === 'succeeded') {
-      const model = j.outputs.find(u => /\.glb(?:\?|$)/i.test(u));
-      if (!model) j.error = '任务成功，但没有可预览的 GLB 产物。';
+      const model = j.kind === 'animation' ? j.outputs[0] : j.outputs.find(u => /\.glb(?:\?|$)/i.test(u));
+      if (!model) j.error = j.kind === 'animation' ? '任务成功，但没有返回动画结果文件。' : '任务成功，但没有可预览的 GLB 产物。';
+      else if (j.kind === 'animation') {
+        // Official docs: the result file format is "whatever the result is", so detect it from the bytes.
+        try {
+          const buffer = await downloadAsset(model);
+          const ext = buffer.toString('ascii', 0, 4) === 'glTF' ? 'glb' : buffer[0] === 0x50 && buffer[1] === 0x4b ? 'zip' : null;
+          if (!ext) throw fail(502, 'UNKNOWN_ANIMATION_FORMAT', '动画结果既不是 GLB 也不是 ZIP，未缓存。');
+          await writeFile(path.join(MODELS, `${j.id}.${ext}`), buffer);
+          j.cached = true; j.ext = ext; j.error = null;
+          j.bytes = buffer.length; j.sha256 = digest(buffer); j.cachedAt = new Date().toISOString();
+          await audit('model_cached', { id: j.id, taskId: j.taskId, bytes: buffer.length, ext, kind: 'animation', sha256: j.sha256 });
+        } catch (e) { j.error = e.message; }
+      }
       else {
         try {
           const buffer = await downloadAsset(model);
           if (buffer.length < 12 || buffer.toString('ascii', 0, 4) !== 'glTF') throw fail(502, 'INVALID_GLB', '模型内容不是有效 GLB。');
           await writeFile(path.join(MODELS, j.id + '.glb'), buffer);
           j.cached = true; j.error = null;
-          await audit('model_cached', { id: j.id, taskId: j.taskId, bytes: buffer.length });
+          j.bytes = buffer.length; j.sha256 = digest(buffer); j.cachedAt = new Date().toISOString();
+          await audit('model_cached', { id: j.id, taskId: j.taskId, bytes: buffer.length, sha256: j.sha256 });
         } catch (e) { j.error = e.message; }
       }
     }
@@ -147,12 +181,12 @@ async function body(req) {
   try { return JSON.parse(text); } catch { throw fail(400, 'INVALID_JSON', 'JSON 格式错误。'); }
 }
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.glb': 'model/gltf-binary', '.json': 'application/json', '.woff2': 'font/woff2' };
-async function serveFile(res, file, root, attachment = false) {
+async function serveFile(res, file, root, attachment = false, headers = {}) {
   const rootReal = await realpath(root);
   const fileReal = await realpath(file);
   if (!fileReal.startsWith(rootReal + path.sep) || !(await stat(fileReal)).isFile()) throw fail(404, 'NOT_FOUND', '文件不存在。');
   const bytes = await readFile(fileReal);
-  res.writeHead(200, { 'Content-Type': mime[path.extname(fileReal)] || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', ...(attachment ? { 'Content-Disposition': 'attachment; filename="model.glb"' } : {}) }); res.end(bytes);
+  res.writeHead(200, { 'Content-Type': mime[path.extname(fileReal)] || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', ...(attachment ? { 'Content-Disposition': 'attachment; filename="model.glb"' } : {}), ...headers }); res.end(bytes);
 }
 export const server = http.createServer(async (req, res) => {
   try {
@@ -161,6 +195,14 @@ export const server = http.createServer(async (req, res) => {
     if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}` && req.headers.origin !== `https://${req.headers.host}`) throw fail(403, 'ORIGIN_REJECTED', '不允许跨站请求。');
     if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, configured: configured(), provider: 'Aholo Lux3D', adapter: 'official-openapi-v2', pollAfterMs: 6000 });
     if (req.method === 'GET' && url.pathname === '/api/generations') return json(res, 200, { generations: [...jobs.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(publicJob) });
+    if (req.method === 'GET' && url.pathname === '/api/provenance') {
+      const assets = [...jobs.values()].filter(j => j.cached).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(j => ({
+        id: j.id, title: j.title || null, question: j.question || j.prompt, taskId: j.taskId, version: j.version, createdAt: j.createdAt, cachedAt: j.cachedAt || null,
+        bytes: j.bytes || null, sha256: j.sha256 || null, modelUrl: `/models/${j.id}.${j.ext || 'glb'}`, downloadUrl: publicJob(j).downloadUrl,
+      }));
+      return json(res, 200, { provider: 'Aholo Lux3D', version: process.env.LUX3D_VERSION || 'G1', adapter: 'official-openapi-v2', generatedAt: new Date().toISOString(),
+        totals: { assets: assets.length, originalBytes: assets.reduce((n, a) => n + (a.bytes || 0), 0) }, assets });
+    }
     if (req.method === 'POST' && url.pathname === '/api/generations') {
       requireConfig();
       const input = await body(req);
@@ -200,10 +242,17 @@ export const server = http.createServer(async (req, res) => {
         const bytes = await downloadAsset(source); res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="lux3d-model.zip"' }); return res.end(bytes);
       }
       if (!j.cached) throw fail(409, 'MODEL_NOT_READY', 'GLB 模型尚未就绪。');
-      return await serveFile(res, path.join(MODELS, j.id + '.glb'), MODELS, true);
+      return await serveFile(res, path.join(MODELS, j.id + '.' + (j.ext || 'glb')), MODELS, true, { 'Cache-Control': 'no-store' });
     }
     const model = url.pathname.match(/^\/models\/([a-f0-9-]{36})\.glb$/);
-    if (req.method === 'GET' && model) return await serveFile(res, path.join(MODELS, model[1] + '.glb'), MODELS);
+    if (req.method === 'GET' && model) {
+      // The authoritative Lux3D GLB is kept for download; the lighter web derivative is what the
+      // browser streams. Cache is immutable because every file name is a generation UUID.
+      const web = path.join(WEB_MODELS, model[1] + '.glb');
+      let file = path.join(MODELS, model[1] + '.glb');
+      try { if ((await stat(web)).isFile()) file = web; } catch {}
+      return await serveFile(res, file, MODELS, false, { 'Cache-Control': 'public, max-age=31536000, immutable' });
+    }
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/models/')) throw fail(404, 'NOT_FOUND', '接口不存在。');
     if (req.method !== 'GET' && req.method !== 'HEAD') throw fail(405, 'METHOD_NOT_ALLOWED', '请求方法不支持。');
     const dist = path.join(ROOT, 'dist');
@@ -223,6 +272,7 @@ const timer = setInterval(() => {
   for (const j of jobs.values()) if (['queued', 'processing'].includes(j.status) || j.status === 'succeeded' && !j.cached) refresh(j).catch(e => { j.error = e.message; persist().catch(() => {}); });
 }, 6000);
 timer.unref();
+backfillAssets().catch(e => console.error('Could not backfill cached asset metadata:', e.message));
 server.on('close', () => clearInterval(timer));
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   server.listen(Number(process.env.PORT || 8787), process.env.HOST || '127.0.0.1', () => console.log(`Server listening on http://${process.env.HOST || '127.0.0.1'}:${process.env.PORT || 8787}; Lux3D ${configured() ? 'configured' : 'NOT CONFIGURED'}`));

@@ -1,7 +1,15 @@
 import * as T from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/** Web derivatives use Meshopt + WebP, so every loader needs the decoder before parsing. */
+function modelLoader() {
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  return loader;
+}
 
 /* ---------- Shared materials (never disposed with individual exhibits) ---------- */
 /* Fine horizontal grain, used as a roughness map so brass reads as hand-finished rather than plastic. */
@@ -176,15 +184,6 @@ const windowGlowTexture = () => canvasTex(256, 256, (x, w, h) => {
   x.fillStyle = g; x.fillRect(0, 0, w, h);
 });
 
-/** Warm daylight seen through the moon gate at the end of the hall. */
-const gateGlowTexture = () => canvasTex(512, 512, (x, w) => {
-  const g = x.createRadialGradient(w / 2, w * .62, 20, w / 2, w / 2, w * .62);
-  g.addColorStop(0, '#fff3d6'); g.addColorStop(.45, '#f1c987'); g.addColorStop(1, '#9a5a2a');
-  x.fillStyle = g; x.fillRect(0, 0, w, w);
-  x.fillStyle = 'rgba(40,18,8,.55)';
-  for (let i = 0; i < 5; i++) { const px = 90 + i * 82, hh = 70 + (i % 3) * 36; x.fillRect(px, w - hh, 46, hh); }
-});
-
 /** Thin gold measuring ring projected on the floor around each plinth (instrument-dial look). */
 const ringTexture = () => canvasTex(512, 512, (x, w) => {
   x.translate(w / 2, w / 2); x.strokeStyle = '#ffd58a';
@@ -217,17 +216,53 @@ function plaqueTexture(ex, onReady) {
   return t;
 }
 
-const backWallTexture = () => canvasTex(2048, 768, (x, w, h) => {
-  x.fillStyle = '#12100e'; x.fillRect(0, 0, w, h);
-  const g = x.createRadialGradient(w / 2, h * .45, 40, w / 2, h * .45, w * .5);
-  g.addColorStop(0, 'rgba(201,169,97,.22)'); g.addColorStop(1, 'rgba(201,169,97,0)');
-  x.fillStyle = g; x.fillRect(0, 0, w, h);
-  x.textAlign = 'center';
-  x.globalAlpha = .9; x.fillStyle = '#e8dcc0'; x.font = 'italic 600 110px Georgia, "Noto Serif SC", serif'; x.fillText('USELESS,', w / 2, 120);
-  x.fillStyle = '#c9a961'; x.fillText('PRICELESS.', w / 2, 240); x.globalAlpha = 1;
-  x.fillStyle = 'rgba(232,220,192,.6)'; x.font = '500 28px ui-monospace, Consolas, monospace';
-  x.fillText('MUSEUM OF USELESS NEEDS  ·  EST. 2026', w / 2, 300);
-});
+/** Back wall: large gold inscription over a lacquered panel. Redraws when web fonts are ready. */
+function backWallTexture(onReady) {
+  const W = 2048, H = 1152;
+  const BRUSH = '"Long Cang", "STXingkai", "KaiTi", "Noto Serif SC", serif';
+  const draw = (x) => {
+    x.clearRect(0, 0, W, H);
+    // dark dyed-stone wall: fine mottling only, no frame, no board
+    x.fillStyle = '#0f0a08'; x.fillRect(0, 0, W, H);
+    let seed = 9; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 2200; i++) {
+      const g = 14 + rnd() * 16 | 0;
+      x.fillStyle = `rgba(${g + 8},${g},${g - 4},${.05 + rnd() * .1})`;
+      x.fillRect(rnd() * W, rnd() * H, rnd() * 140 + 20, rnd() * 3 + .6);
+    }
+    // soft halo behind the name, as if lit from behind
+    const halo = x.createRadialGradient(W / 2, H * .47, 40, W / 2, H * .47, W * .5);
+    halo.addColorStop(0, 'rgba(255,196,120,.22)'); halo.addColorStop(.5, 'rgba(255,170,90,.07)'); halo.addColorStop(1, 'rgba(255,170,90,0)');
+    x.fillStyle = halo; x.fillRect(0, 0, W, H);
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    // the name: warm pale gold, drawn in layers (glow, body, hot core) so it reads as light, not paint
+    const NAME = '无用需求博物馆', cx = W / 2 + 14, cy = H * .47;
+    x.font = `236px ${BRUSH}`;
+    if ('letterSpacing' in x) x.letterSpacing = '28px';
+    x.fillStyle = 'rgba(255,184,100,.55)'; x.shadowColor = 'rgba(255,170,80,.9)'; x.shadowBlur = 70;
+    x.fillText(NAME, cx, cy);
+    x.shadowBlur = 26; x.fillStyle = 'rgba(255,205,140,.8)'; x.fillText(NAME, cx, cy);
+    x.shadowBlur = 0;
+    const body = x.createLinearGradient(0, cy - 140, 0, cy + 140);
+    body.addColorStop(0, '#fff0cf'); body.addColorStop(.55, '#f1d49a'); body.addColorStop(1, '#d9b06a');
+    x.fillStyle = body; x.fillText(NAME, cx, cy);
+    if ('letterSpacing' in x) x.letterSpacing = '0px';
+    // one small cinnabar seal, tucked under the last character
+    const sx = W / 2 + 640, sy = cy + 205, ss = 84;
+    x.save(); x.translate(sx, sy); x.rotate(-.05);
+    x.fillStyle = '#a62c1c'; x.fillRect(-ss / 2, -ss / 2, ss, ss);
+    for (let i = 0; i < 90; i++) { x.fillStyle = `rgba(15,10,8,${.25 + rnd() * .4})`; x.fillRect(-ss / 2 + rnd() * ss, -ss / 2 + rnd() * ss, 2 + rnd() * 3, 2 + rnd() * 3); }
+    x.fillStyle = '#f6dfcf'; x.font = `38px ${BRUSH}`;
+    x.fillText('无', -ss / 4 + 1, -ss / 4 + 2); x.fillText('用', ss / 4 - 1, -ss / 4 + 2);
+    x.fillText('之', -ss / 4 + 1, ss / 4); x.fillText('巅', ss / 4 - 1, ss / 4);
+    x.restore();
+  };
+  const t = canvasTex(W, H, draw);
+  t.anisotropy = 8;
+  document.fonts?.load('236px "Long Cang"', '无用需求博物馆之巅')
+    .then(() => { draw(t.image.getContext('2d')); t.needsUpdate = true; onReady?.(); }).catch(() => {});
+  return t;
+}
 
 const TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap'];
 const easeOut = k => 1 - Math.pow(1 - k, 3);
@@ -463,7 +498,11 @@ export class MuseumScene {
     this.holder = null; this.object = null; this.pendingSnapshot = null; this.enterStart = undefined;
     for (const o of this.galleryObjects) {
       this.scene.remove(o);
-      o.traverse(n => { n.geometry?.dispose(); if (n.material?.map?.isCanvasTexture) n.material.map.dispose(); });
+      o.traverse(n => {
+        n.geometry?.dispose();
+        if (n.userData.loaded) { for (const m of [].concat(n.material || [])) { for (const slot of TEXTURE_SLOTS) m[slot]?.dispose(); m.dispose(); } }
+        else if (n.material?.map?.isCanvasTexture) n.material.map.dispose();
+      });
     }
     this.galleryObjects = [];
     for (const o of this.galleryExtras || []) {
@@ -509,7 +548,7 @@ export class MuseumScene {
     if (!exhibit.modelUrl) return;
     try {
       let bytes = 0;
-      const gltf = await new GLTFLoader().loadAsync(exhibit.modelUrl, e => {
+      const gltf = await modelLoader().loadAsync(exhibit.modelUrl, e => {
         bytes = e.loaded || bytes;
         if (this.token === token) this.onProgress?.(e.lengthComputable && e.total ? e.loaded / e.total : null);
       });
@@ -533,6 +572,29 @@ export class MuseumScene {
       this.onProgress?.(1);
       this.onStatus?.('模型载入失败 · 当前显示交互概念模型');
     }
+  }
+
+  /** Replace a procedural stand-in with the real Lux3D asset once it arrives. */
+  async loadGalleryModel(exhibit, group, placeholder, index) {
+    const token = this.token;
+    try {
+      const gltf = await modelLoader().loadAsync(exhibit.modelUrl);
+      gltf.scene.traverse(o => { o.castShadow = true; o.receiveShadow = true; o.userData.loaded = true; });
+      if (this.token !== token || this.mode !== 'gallery' || !group.parent) { this.disposeObject(gltf.scene); return; }
+      const model = gltf.scene;
+      const box = new T.Box3().setFromObject(model);
+      const size = box.getSize(new T.Vector3());
+      const s = 1.62 / Math.max(size.x, size.y, size.z);
+      model.scale.setScalar(s);
+      const fitted = new T.Box3().setFromObject(model);
+      const center = fitted.getCenter(new T.Vector3());
+      model.position.set(-center.x, -fitted.min.y - .03, -center.z);
+      group.remove(placeholder);
+      placeholder.traverse(o => o.geometry?.dispose());
+      group.add(model);
+      this.dirty = true;
+      this.onStatus?.('Lux3D 生成模型 · ' + (index + 1) + ' / ' + this.galleryObjects.length + ' 已载入');
+    } catch { /* offline or unsupported asset: the procedural model remains as a labelled stand-in */ }
   }
 
   gallery(exhibits) {
@@ -621,15 +683,9 @@ export class MuseumScene {
       cove.position.set(side * (HALL_W / 2 - .12), CEIL_Y - .06, midZ); add(cove);
     }
 
-    const back = new T.Mesh(new T.PlaneGeometry(HALL_W, CEIL_Y - FLOOR_Y), new T.MeshBasicMaterial({ map: backWallTexture(), fog: false }));
+    const back = new T.Mesh(new T.PlaneGeometry(HALL_W, CEIL_Y - FLOOR_Y), new T.MeshBasicMaterial({ map: backWallTexture(() => { this.dirty = true; }), fog: false }));
     back.position.set(0, (CEIL_Y + FLOOR_Y) / 2, hallZ1); add(back);
-    const gate = new T.Group(); gate.position.set(0, 1.45, hallZ1 + .05);
-    const disc = new T.Mesh(new T.CircleGeometry(1.95, 72), new T.MeshBasicMaterial({ map: gateGlowTexture(), fog: false }));
-    const frame = new T.Mesh(new T.TorusGeometry(1.98, .09, 12, 96), gold); frame.position.z = .02;
-    const inner = new T.Mesh(new T.TorusGeometry(1.84, .025, 8, 96), new T.MeshBasicMaterial({ color: 0xffe3a8, fog: false })); inner.position.z = .04;
-    const halo = new T.Sprite(new T.SpriteMaterial({ map: this.glow ||= glowTexture(), color: 0xffd08a, transparent: true, opacity: .5, depthWrite: false, blending: T.AdditiveBlending, fog: false }));
-    halo.scale.setScalar(9); halo.position.z = -.1;
-    gate.add(halo, disc, frame, inner); add(gate);
+
 
     const marble = marbleTexture();
     const stone = new T.MeshStandardMaterial({ map: marble, color: 0xcfc8b8, roughness: .42, metalness: .05, envMapIntensity: .8 });
@@ -648,6 +704,7 @@ export class MuseumScene {
       group.userData.baseScale = 1;
       group.userData.ring = band;
       this.scene.add(group); this.galleryObjects.push(group);
+      if (ex.modelUrl) this.loadGalleryModel(ex, group, sc, i);
 
       const sp = this.galSpots[i];
       if (sp) {
@@ -670,7 +727,7 @@ export class MuseumScene {
     this.controls.minDistance = 3.4; this.controls.maxDistance = 19;
     this.goRow(0, true);
     this.onProgress?.(1);
-    this.onStatus?.('朱墙长廊 · [ ] 前行 · 悬停展台查看 · 点击展台了解展品');
+    this.onStatus?.('朱墙长廊 · 拖动环视 · 滚轮推近 · 底部按钮前行 · 点击展台了解展品');
     this.onRow?.(0, this.rows);
     this.dirty = true;
   }
@@ -709,6 +766,7 @@ export class MuseumScene {
     if (this.mode !== 'gallery' || !this.rows) return undefined;
     this.row = (this.row + delta + this.rows) % this.rows;
     this.goRow(this.row);
+    this.onRow?.(this.row, this.rows);
     return this.row;
   }
 

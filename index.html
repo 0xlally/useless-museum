@@ -11,13 +11,13 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23f8f8f6'/%3E%3Ctext x='32' y='42' font-family='Georgia,serif' font-size='30' font-weight='700' text-anchor='middle' fill='%230a0a0a'%3Em%3Ctspan fill='%23d4492d'%3E·%3C/tspan%3Eu%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@200;300;500;600;700&family=Long+Cang&display=swap">
 <title>无用需求博物馆 · Museum of Useless Needs</title>
 </head>
 <body>
 <div class="preloader" id="preloader" aria-hidden="true"><div class="preloader-inner"><span class="preloader-mark">M·U</span><span class="preloader-name">无用需求博物馆</span><span class="preloader-line"><i></i></span></div></div>
 <div class="grain" aria-hidden="true"></div>
-<nav class="rail" id="rail" aria-label="页面章节"><a href="#top" data-rail="top"><i></i><span>开篇</span></a><a href="#collection" data-rail="collection"><i></i><span>展览</span></a><a href="#donation" data-rail="donation"><i></i><span>征集</span></a></nav>
+<nav class="rail" id="rail" aria-label="页面章节"><a href="#top" data-rail="top"><i></i><span>开篇</span></a><a href="#collection" data-rail="collection"><i></i><span>展览</span></a><a href="#growth" data-rail="growth"><i></i><span>生长</span></a><a href="#donation" data-rail="donation"><i></i><span>征集</span></a></nav>
 <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
 <a class="skip-link" href="#collection">跳到展览</a>
 <noscript><p class="noscript">本馆展厅需要 JavaScript 才能开放。</p></noscript>
@@ -75,6 +75,11 @@
         <button type="button" class="peek peek-next" id="peek-next" aria-label="下一件展品" hidden></button>
         <aside class="inspector" id="inspector" aria-label="模型检视"></aside>
         <div class="gal-tip" id="gal-tip" aria-hidden="true"></div>
+        <div class="walk" id="walk" aria-label="走廊前行">
+          <button type="button" id="walk-back" aria-label="往回走"><i data-lucide="ChevronLeft" aria-hidden="true"></i><span>上一排</span></button>
+          <span class="walk-pos" id="walk-pos" aria-live="polite">1 / 3</span>
+          <button type="button" id="walk-fwd" aria-label="向前走"><span>下一排</span><i data-lucide="ChevronRight" aria-hidden="true"></i></button>
+        </div>
         <aside class="gal-card" id="gal-card" aria-label="展品介绍" hidden></aside>
         <div class="hint" id="key-hint" aria-hidden="true"><kbd>[</kbd><kbd>]</kbd> 切换展品 <span>·</span> 拖动旋转</div>
         <div class="stage-loader" id="stage-loader" hidden><span class="stage-loader-bar"><i id="stage-loader-fill"></i></span><span>载入模型</span></div>
@@ -111,6 +116,46 @@
     <div class="shelf" id="shelf"></div>
   </section>
 
+  <section class="growth" id="growth" data-reveal aria-labelledby="growth-title">
+    <div class="growth-head">
+      <div class="section-title"><span>02 /</span><h2 id="growth-title">无限展馆</h2><span class="count">THE INFINITE HALL</span></div>
+      <p class="growth-thesis">展品不是被做出来的，<br>是被观众<span class="italic">说出来</span>的。</p>
+      <div class="growth-copy">
+        <p>每一位观众带来的困扰都不相同。手工建模的产能是线性的：多一件展品，就多一份建模、拓扑、UV、贴图与材质工时；而观众的问题是无限的。两者之间没有比例可调。</p>
+        <p>Aholo Lux3D 把一句话直接变成一件可旋转、可下载的三维资产，入藏的边际工时才降到接近零。这座博物馆因此可以一直长下去——<strong>Lux3D 不是展品旁边的装饰，而是整条生产线本身。</strong></p>
+      </div>
+    </div>
+
+    <div class="growth-flow" aria-label="从一句话到一件展品的生产链">
+      <div class="flow-node"><small>01 / 观众</small><b>说一句无用需求</b><span>“怎么防止影子在下午偷偷变长？”</span></div>
+      <div class="flow-arrow" aria-hidden="true">→</div>
+      <div class="flow-node"><small>02 / 造型脚本</small><b>翻译成单件仪器</b><span>环形测量框 · 黄铜 · 可生成</span></div>
+      <div class="flow-arrow" aria-hidden="true">→</div>
+      <div class="flow-node flow-live"><small>03 / AHOLO LUX3D G1</small><b>文生 3D</b><span>真实任务 · 异步生成 · PBR</span></div>
+      <div class="flow-arrow" aria-hidden="true">→</div>
+      <div class="flow-node"><small>04 / 本馆</small><b>入藏为独立资产</b><span>GLB 缓存 · 旋转检视 · 下载</span></div>
+    </div>
+
+    <div class="growth-grid">
+      <div class="growth-stats" id="growth-stats">
+        <div><b id="stat-exhibits">06</b><span>件常设展品</span></div>
+        <div><b id="stat-real">00</b><span>件 Lux3D 真实生成</span></div>
+        <div><b>00</b><span>件手工建模</span></div>
+        <div><b id="stat-tasks">00</b><span>条生成档案</span></div>
+      </div>
+      <div class="growth-compare" aria-label="手工建模与 Lux3D 生成对比">
+        <div class="cmp-row cmp-head"><span>产能对照</span><span>手工建模</span><span class="cmp-lux">Lux3D 生成</span></div>
+        <div class="cmp-row"><span>单件周期</span><span>以人日计</span><span class="cmp-lux">分钟级</span></div>
+        <div class="cmp-row"><span>第 N 件</span><span>线性累加</span><span class="cmp-lux">同一流程</span></div>
+        <div class="cmp-row"><span>造型来源</span><span>建模师排期</span><span class="cmp-lux">观众的问题</span></div>
+        <div class="cmp-row"><span>现场入藏</span><span>不可行</span><span class="cmp-lux">可等待</span></div>
+        <div class="cmp-row"><span>资产形态</span><span>需另做导出</span><span class="cmp-lux">GLB + PBR</span></div>
+      </div>
+    </div>
+
+    <p class="growth-foot"><span class="live-dot" aria-hidden="true"></span> 当前 <b id="growth-proof">0 / 6</b> 件常设展品为 Aholo Lux3D 真实生成并缓存。任务编号、原始字节数与 SHA-256 可在「藏品档案」及 <code>/api/provenance</code> 中逐件核验。</p>
+  </section>
+
   <section class="donation" id="donation" data-reveal aria-labelledby="donation-title">
     <div>
       <p class="eyebrow">OPEN CALL / 长期征集</p>
@@ -128,7 +173,7 @@
   </section>
 
   <section class="archive" id="archive" hidden aria-labelledby="archive-title">
-    <div class="section-title"><span>02 /</span><h2 id="archive-title">观众共创档案</h2></div>
+    <div class="section-title"><span>03 /</span><h2 id="archive-title">观众共创档案</h2></div>
     <div id="jobs"></div>
   </section>
 

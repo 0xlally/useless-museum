@@ -1,9 +1,57 @@
 {
-  "at": "2026-10-29T13:48:42.048Z",
-  "officialTaskId": "4477428",
-  "localId": "70ed1401-cf06-443a-a2b2-662e95748a82",
-  "cached": true,
-  "bytes": 7731300,
-  "rendererStatus": "Lux3D 生成模型 · 真实资产",
+  "at": "2026-10-30T15:53:27.796Z",
+  "galleryStatus": "Lux3D 生成模型 · 6 / 6 已载入",
+  "desktop": {
+    "real": 6,
+    "total": 6
+  },
+  "mobile": {
+    "width": 375,
+    "overflow": false
+  },
+  "assets": [
+    {
+      "taskId": "4477428",
+      "title": "影子限长器",
+      "bytes": 7731300,
+      "webBytes": 621804,
+      "sha256": "a8ea994e78a5be673fbc80461ff679697ea03a87fb3dd05501b7d9c7e17a12d2"
+    },
+    {
+      "taskId": "4505646",
+      "title": "哈欠收纳罐",
+      "bytes": 6939068,
+      "webBytes": 797792,
+      "sha256": "761d5e32398251a9103652b75dac42d1354df0247af5e304fc5ea84349d012a4"
+    },
+    {
+      "taskId": "4506067",
+      "title": "冷咖啡二次杯套",
+      "bytes": 6972536,
+      "webBytes": 685024,
+      "sha256": "b7de333eb0e8a0b00cc074264c625c1357d9c4d1a21d0bf59d1daffeafd32a86"
+    },
+    {
+      "taskId": "4506171",
+      "title": "灰尘队列整理机",
+      "bytes": 7115492,
+      "webBytes": 446848,
+      "sha256": "66c8ea070e4ebd40a5208528dd0b27231e4c5366e0dfb0ef96e531760373262c"
+    },
+    {
+      "taskId": "4506245",
+      "title": "马上到等待计时器",
+      "bytes": 9890356,
+      "webBytes": 918560,
+      "sha256": "70a91c4b6aecbe20910331ef3a2e2243a8479ce30e345834f83b0cae1303a8e8"
+    },
+    {
+      "taskId": "4506327",
+      "title": "周一暂停按钮",
+      "bytes": 9711020,
+      "webBytes": 801404,
+      "sha256": "9df3ff0a39b8bf10ecc3eeaaefa67aea041ca572e46ac71250d447741a3f6b6d"
+    }
+  ],
   "errors": []
 }

@@ -26,9 +26,22 @@
 
 调用 Lux3D 文生 3D → 官方任务 ID → 真实异步状态 → GLB 本地缓存 → 浏览器交互展品。对于预先写好的完整造型提示，传入 `question` 和 `title` 时直接使用 `prompt`，保留原始问题与作品名。
 
-后台 `data/audit.jsonl` 保存创建意图、实际请求字段、任务 ID、状态变化及模型缓存字节数；`data/generations.json` 保存任务恢复状态；`data/models/<id>.glb` 保存实际官方生成模型。凭据、Authorization 头不写入审计，不返回浏览器。
+六件常设展品已全部由真实 G1 任务生成并缓存：
 
-真实任务曾观察到进行中 `outputs` 中含 null；适配器已增加 null 防护。技术上已确认创建可用，最终生成结果、文件大小和浏览器画面应以本地真实记录与截图为准，不能把 mock 测试当成官方资产证据。
+| 展品 | 官方任务 | 原始 GLB | 浏览版 | 三角面 |
+| --- | --- | --- | --- | --- |
+| 影子限长器 | #4477428 | 7,731,300 B | 621,804 B | 96,729 |
+| 哈欠收纳罐 | #4505646 | 6,939,068 B | 797,792 B | 99,360 |
+| 冷咖啡二次杯套 | #4506067 | 6,972,536 B | 685,024 B | 96,851 |
+| 灰尘队列整理机 | #4506171 | 7,115,492 B | 446,848 B | 99,039 |
+| 马上到等待计时器 | #4506245 | 9,890,356 B | 918,560 B | 94,391 |
+| 周一暂停按钮 | #4506327 | 9,711,020 B | 801,404 B | 97,556 |
+
+原始资产合计 48,359,772 B，浏览版合计 4,271,432 B（约 11.3× 压缩），583,926 个三角面。浏览版使用 Meshopt 几何压缩、WebP 与 1024px 贴图；原始 GLB 保留，可通过 `/api/generations/<id>/download?format=glb` 下载。逐件 SHA-256、缓存时间与完整核验结果见 `data/provenance.json`、`/api/provenance` 与 `node scripts/verify-assets.mjs`。
+
+后台 `data/audit.jsonl` 保存创建意图、实际请求字段、任务 ID、状态变化及模型缓存字节数；`data/generations.json` 保存任务恢复状态；`data/models/<id>.glb` 保存原始官方生成模型；`data/models/web/<id>.glb` 保存浏览版；`data/provenance.json` 保存校验清单。凭据、Authorization 头不写入审计，不返回浏览器。
+
+真实任务曾观察到进行中 `outputs` 中含 null；适配器已增加 null 防护。当前六件资产均已用 `scripts/verify-assets.mjs` 从磁盘重新校验文件头与 SHA-256，不把 mock 测试当成官方资产证据。
 
 ## 核实后的官方 API
 
@@ -71,9 +84,10 @@ G1 返回 ZIP、GLB；请求 PLY 时另外返回 PLY。G1-Turbo 返回指定格�
 | `GET /api/health` | `{ok,configured,provider,adapter,pollAfterMs}`；`configured` 只表示本机存在密钥，不能当成密钥有效或官方可达证明 |
 | `POST /api/generations` | 接受 `{prompt,question?,title?}`；202 返回任务；默认一个活跃任务，重复并发 429 |
 | `GET /api/generations` | `{generations:[...]}`，从本地审计状态恢复 |
-| `GET /api/generations/:id` | 查询真实官方状态，公开字段为 `id,prompt,question,title,status,modelUrl,downloadUrl,error,createdAt,updatedAt` |
-| `GET /models/:id.glb` | 仅返回本地已缓存 GLB |
-| `GET /api/generations/:id/download` | 下载 GLB；`?format=zip` 代理官方 ZIP |
+| `GET /api/generations/:id` | 查询真实官方状态，公开字段含 `id,prompt,question,title,status,modelUrl,downloadUrl,assetBytes,assetSha256,cachedAt,error` |
+| `GET /api/provenance` | 机器可读的资产清单：任务号、原始字节数、SHA-256、缓存时间与下载地址 |
+| `GET /models/:id.glb` | 返回本地已缓存 GLB；存在浏览版时优先返回浏览版，并带 `immutable` 缓存头 |
+| `GET /api/generations/:id/download` | `?format=glb` 下载原始 GLB；`?format=zip` 代理官方 ZIP |
 
 状态为 `queued / processing / succeeded / failed / cancelled`。`modelUrl` 仅在 GLB 缓存成功后为 `/models/<id>.glb`，否则 null；官方成功但模型无法下载时保留错误解释。每 6 秒后台轮询，查询去重并设置 5 秒最短间隔。未配置返回 503 与 `LUX3D_NOT_CONFIGURED`，不会返回演示假结果。错误结构 `{error:{code,message}}`。
 
@@ -81,7 +95,7 @@ G1 返回 ZIP、GLB；请求 PLY 时另外返回 PLY。G1-Turbo 返回指定格�
 
 开发时由 Vite 将 `/api` 和 `/models` 代理到 `http://127.0.0.1:8787`。运行 `node server.mjs`；服务端会读取项目 `.env`。前端构建后，此服务也可托管 `dist`，静态文件限制在构建目录内，拒绝隐藏文件和越界路径。默认只监听 127.0.0.1；公开部署前需添加用户访问控制和费用配额，并通过 HTTPS 反向代理部署。当前实现为本机单进程演示，不支持多个进程同时写同一数据目录。
 
-验证命令：`node --check server.mjs`、`node --test server.test.mjs`。集成测试使用虚假凭据和官方格式 mock，验证配置错误、鉴权字段、创建/轮询、null 产物项、GLB 缓存、恢复列表、并发、跨域、隐藏路径与无密钥审计；它不访问官方、不计费。
+验证命令：`node --check server.mjs`、`node --test server.test.mjs`、`node scripts/verify-assets.mjs`、`npm run build`。集成测试使用虚假凭据和官方格式 mock，验证配置错误、鉴权字段、创建/轮询、null 产物项、GLB 缓存、SHA-256、provenance、恢复列表、并发、跨域、隐藏路径与无密钥审计；它不访问官方、不计费。
 
 ## 30 秒真实演示脚本
 
@@ -119,9 +133,10 @@ G1 返回 ZIP、GLB；请求 PLY 时另外返回 PLY。G1-Turbo 返回指定格�
 ## 提交前仍须完成
 
 - [ ] 留存实际报名、组队和选题提交成功记录；本开发任务没有代替用户报名。
-- [x] 真实官方任务 **4477428** 已成功；本地 ID `70ed1401-cf06-443a-a2b2-662e95748a82`，GLB **7,731,300 字节**，已缓存并加载。
-- [x] 浏览器确认“Lux3D 生成模型 · 真实资产”，旋转、缩放、试用和投票正常；`artifacts/real-model-verification.json` 无脚本错误。
-- [x] `artifacts/无用需求博物馆-项目报告草稿.pdf` 已包含创意、流程、来源、截图与任务证据，正式提交前补真实团队与公开链接。
+- [x] 六件常设展品均为真实官方任务：**#4477428 / #4505646 / #4506067 / #4506171 / #4506245 / #4506327**；原始 GLB 共 48,359,772 字节，全部缓存并加载。
+- [x] `node scripts/verify-assets.mjs` 从磁盘重新校验 6/6 件 GLB 与 SHA-256；`data/provenance.json` 与 `/api/provenance` 给出同一组证据。
+- [x] 浏览器确认空间总览 6/6 真实模型、单件检视、旋转、缩放、试用和投票正常；浏览器检查无脚本错误。
+- [x] 已从 `docs/project-report.html` 重新导出 `artifacts/无用需求博物馆-项目报告草稿.pdf`，包含六件资产与 provenance 证据。
 - [ ] 部署可公开体验的访问地址，配置凭据隔离、访问控制和调用额度；本机 localhost 不能当公开演示链接。
 - [ ] 按脚本拍摄真实运行视频；在最终提交表单确认文件格式、大小、时长、Demo 链接与视频要求。
 - [ ] 用户审阅社交草稿后才可对外发布；记录真实帖子链接并保持公开到结果公布。

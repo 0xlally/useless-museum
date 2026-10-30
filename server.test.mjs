@@ -58,7 +58,15 @@ test('official adapter: configuration errors, create, poll, GLB cache, audit and
     assert.equal((await post('a duplicate job')).status, 429);
     const result = await (await call('/api/generations/' + job.id)).json();
     assert.equal(result.status, 'succeeded'); assert.equal(result.modelUrl, `/models/${job.id}.glb`);
+    assert.equal(result.assetBytes, 12);
+    assert.match(result.assetSha256, /^[a-f0-9]{64}$/);
+    assert.equal(result.downloadUrl, `/api/generations/${job.id}/download?format=zip`);
     assert.equal(Buffer.from(await (await call(result.modelUrl)).arrayBuffer()).toString('ascii', 0, 4), 'glTF');
+    assert.equal(Buffer.from(await (await call(`/api/generations/${job.id}/download?format=glb`)).arrayBuffer()).toString('ascii', 0, 4), 'glTF');
+    const provenance = await (await call('/api/provenance')).json();
+    assert.equal(provenance.totals.assets, 1);
+    assert.equal(provenance.assets[0].taskId, '123456');
+    assert.equal(provenance.assets[0].sha256, result.assetSha256);
     assert.equal((await (await call('/api/generations')).json()).generations.length, 1);
     assert.equal((await call('/api/generations/' + job.id, { headers: { Origin: 'https://evil.example' } })).status, 403);
     assert.equal((await call('/%2eenv')).status, 404);

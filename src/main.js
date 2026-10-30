@@ -105,8 +105,9 @@ function renderInfo() {
     <p class="exhibit-desc">${esc(e.desc)}</p>
     <dl class="specs">
       <div><dt>构成材料</dt><dd>${esc(e.spec)}</dd></div>
-      <div><dt>资产来源</dt><dd>${real ? 'Aholo Lux3D 真实生成' : '程序化概念模型'}</dd></div>
-      ${real && e.officialTaskId ? `<div><dt>官方任务</dt><dd class="mono">#${esc(e.officialTaskId)} · ${esc(e.version || 'G1')}</dd></div>` : ''}
+      <div><dt>资产来源</dt><dd>${real ? 'Aholo Lux3D 真实生成 · ' + esc(e.version || 'G1') : '程序化概念模型'}</dd></div>
+      ${real && e.officialTaskId ? `<div><dt>官方任务</dt><dd class="mono">#${esc(e.officialTaskId)}</dd></div>` : ''}
+      ${real && e.assetBytes ? `<div><dt>原始模型</dt><dd class="mono">${fmtBytes(e.assetBytes)}${e.assetSha256 ? ' · ' + esc(e.assetSha256.slice(0, 12)) + '…' : ''}</dd></div>` : ''}
       <div><dt>实用指数</dt><dd><span class="zero">0</span> / 100 <span class="tiny">经过非常不严谨的测定</span></dd></div>
     </dl>
     <button type="button" class="btn btn-fill trial" id="try">试用一下 ${icon('ArrowUpRight')}</button>
@@ -132,8 +133,14 @@ function trial(e) {
 function showSource(e) {
   modal(`<p class="eyebrow">COLLECTION ARCHIVE / 藏品档案</p><h2 id="dialog-title">${esc(e.name)}</h2>
     <p>${e.modelUrl ? '此展品展示 Aholo Lux3D 真实生成的三维资产。' : '此展品当前为 Three.js 构建的交互概念装置，不计作 Lux3D 生成成果。'}</p>
-    <dl class="archive-details"><dt>创作需求</dt><dd>${esc(e.question)}</dd><dt>资产来源</dt><dd>${e.modelUrl ? 'Aholo Lux3D / ' + esc(e.taskId || e.id) : '程序化概念原型'}</dd><dt>生成提示词</dt><dd>${esc(e.prompt || e.question)}</dd></dl>
-    ${e.modelUrl ? `<a class="btn btn-fill" href="${esc(e.modelUrl)}" download>下载生成模型 ${icon('ArrowUpRight')}</a>` : '<p class="muted">在下方输入需求可提交真实生成，生成成功后进入共创档案。</p>'}`);
+    <dl class="archive-details"><dt>创作需求</dt><dd>${esc(e.question)}</dd>
+      <dt>资产来源</dt><dd>${e.modelUrl ? 'Aholo Lux3D ' + esc(e.version || 'G1') : '程序化概念原型'}</dd>
+      ${e.officialTaskId ? `<dt>官方任务编号</dt><dd class="mono">#${esc(e.officialTaskId)}</dd>` : ''}
+      ${e.assetBytes ? `<dt>缓存模型</dt><dd class="mono">${fmtBytes(e.assetBytes)}${e.cachedAt ? ' · ' + esc(new Date(e.cachedAt).toLocaleString('zh-CN')) : ''}</dd>` : ''}
+      ${e.assetSha256 ? `<dt>SHA-256</dt><dd class="mono">${esc(e.assetSha256)}</dd>` : ''}
+      <dt>生成提示词</dt><dd>${esc(e.prompt || e.question)}</dd></dl>
+    ${e.modelUrl ? `<a class="btn btn-fill" href="${esc(e.modelUrl)}" download>下载浏览版 GLB ${icon('ArrowUpRight')}</a>
+      <a class="btn btn-outline" href="/api/generations/${esc(e.taskId || e.id)}/download?format=glb" download>下载原始 GLB ${icon('ArrowUpRight')}</a>` : '<p class="muted">在下方输入需求可提交真实生成，生成成功后进入共创档案。</p>'}`);
 }
 
 async function share(e) {
@@ -163,8 +170,10 @@ function renderFilters() {
 }
 
 function cardImage(e) {
+  if (e.thumb && e.modelUrl) return `<img src="${e.thumb}" alt="" loading="eager" decoding="async">`;
   const snap = state.thumbs.get(e.id);
-  return snap ? `<img src="${snap}" alt="" loading="lazy" decoding="async">` : thumbSvg(e.kind);
+  if (snap) return `<img src="${snap}" alt="" loading="lazy" decoding="async">`;
+  return thumbSvg(e.kind);
 }
 
 function renderShelf() {
@@ -198,8 +207,7 @@ function updatePeek() {
 function step(delta) {
   if (state.mode === 'gallery') {
     closeGalleryCard();
-    const row = state.scene?.walk(delta);
-    if (row !== undefined) $('#stage-number').textContent = 'GALLERY / ' + String(row + 1).padStart(2, '0');
+    state.scene?.walk(delta);
     return;
   }
   const list = visibleList();
@@ -295,25 +303,40 @@ function setProgress(p) {
 }
 
 /* -------------------------------------------------------------- generation */
+/** The growth ledger is derived from the same records as the archive, never from a hand-written number. */
+function updateGrowth() {
+  const total = exhibits.length;
+  const real = exhibits.filter(e => e.modelUrl).length;
+  const pad = n => String(n).padStart(2, '0');
+  const set = (id, value) => { const el = $(id); if (el) el.textContent = value; };
+  set('#stat-exhibits', pad(total));
+  set('#stat-real', pad(real));
+  set('#stat-tasks', pad(state.jobs.length));
+  set('#growth-proof', `${real} / ${total}`);
+  $('#growth')?.classList.toggle('incomplete', real < total);
+}
+
 function applyJobs() {
   let refreshCurrent = false;
   for (const j of state.jobs) {
     if (!j.modelUrl || !isDone(j)) continue;
+    const evidence = { modelUrl: j.modelUrl, officialTaskId: j.officialTaskId, version: j.version, assetBytes: j.assetBytes, assetSha256: j.assetSha256, cachedAt: j.cachedAt };
     let e = exhibits.find(x => x.taskId === j.id);
-    if (e) { Object.assign(e, { modelUrl: j.modelUrl, officialTaskId: j.officialTaskId, version: j.version }); continue; }
+    if (e) { Object.assign(e, evidence); continue; }
     const text = j.prompt || '';
     const preset = exhibits.find(x => x.question === j.question) || (/shadow length regulator|影子限长/.test(text) ? exhibits[0] : null);
     if (preset && !preset.taskId) {
-      Object.assign(preset, { taskId: j.id, modelUrl: j.modelUrl, prompt: j.prompt, officialTaskId: j.officialTaskId, version: j.version });
+      Object.assign(preset, { taskId: j.id, prompt: j.prompt, ...evidence });
       if (state.current.id === preset.id) refreshCurrent = true;
     } else {
       e = makeConcept(j.question || j.prompt);
-      Object.assign(e, { id: j.id, no: String(exhibits.length + 1).padStart(3, '0'), name: j.title || '观众的无用发明', taskId: j.id, modelUrl: j.modelUrl, prompt: j.prompt, officialTaskId: j.officialTaskId, version: j.version });
+      Object.assign(e, { id: j.id, no: String(exhibits.length + 1).padStart(3, '0'), name: j.title || '观众的无用发明', taskId: j.id, prompt: j.prompt, ...evidence });
       exhibits.push(e);
     }
   }
   renderFilters();
   renderShelf();
+  updateGrowth();
   if (refreshCurrent) choose(state.current, { updateHash: false });
   const linked = hashId();
   if (linked && state.current.id !== linked && findExhibit(linked)) choose(findExhibit(linked), { updateHash: false });
@@ -444,11 +467,15 @@ async function checkHealth() {
 }
 
 /* ------------------------------------------------------------------- about */
-const about = () => modal(`<p class="eyebrow">ABOUT THE MUSEUM</p><h2 id="dialog-title">无用，是一种认真的创作。</h2>
-  <p>这里收藏那些为微不足道的困扰而诞生的郑重发明。我们邀请每个人贡献需求，用 Aholo Lux3D 将它变成可浏览的三维作品。</p>
+const about = () => {
+  const real = exhibits.filter(e => e.modelUrl).length;
+  return modal(`<p class="eyebrow">ABOUT THE MUSEUM</p><h2 id="dialog-title">无用，是一种认真的创作。</h2>
+  <p>这里收藏那些为微不足道的困扰而诞生的郑重发明。每一位观众都可以贡献一个问题，由 Aholo Lux3D 把它变成可浏览、可下载的三维展品。</p>
   <p>点击展品，旋转欣赏，试用它的荒唐功能，再投票决定它有多没用。所有试用均为叙事互动。</p>
-  <p>预设六件装置使用程序化概念模型；只有带「Lux3D 生成」标记的模型才来自真实 API 任务。投票只存于本机，不展示虚构的全网热度。</p>
+  <p>当前 ${real} / ${exhibits.length} 件常设展品由 Aholo Lux3D 真实生成并缓存；没有模型来自手工建模。程序化概念模型只在模型载入前或离线时作为明确标注的回退。</p>
+  <p class="muted">展品数量不是预先设定的：每收到一个新的问题，生成管线就多生产一件资产。这也是本馆可以持续增建的原因。</p>
   <a href="https://www.aholo3d.cn/hackathon" target="_blank" rel="noopener noreferrer">查看 Aholo 黑客松官网 ↗</a>`);
+};
 
 /* -------------------------------------------------------------------- init */
 function bindSearch() {
@@ -461,7 +488,7 @@ function bindSearch() {
 
 function bindRail() {
   const links = $$('[data-rail]');
-  const targets = { top: $('.intro'), collection: $('#collection'), donation: $('#donation') };
+  const targets = { top: $('.intro'), collection: $('#collection'), growth: $('#growth'), donation: $('#donation') };
   const io = new IntersectionObserver(entries => {
     for (const en of entries) if (en.isIntersecting) {
       const key = Object.keys(targets).find(k => targets[k] === en.target);
@@ -487,6 +514,8 @@ function bindChrome() {
   $('#single-view').onclick = () => choose(state.current);
   $('#gallery-view').onclick = enterGallery;
   $('#fullscreen').onclick = toggleFullscreen;
+  $('#walk-fwd').onclick = () => step(1);
+  $('#walk-back').onclick = () => step(-1);
   document.addEventListener('fullscreenchange', () => {
     const on = Boolean(document.fullscreenElement);
     $('#fullscreen').setAttribute('aria-pressed', String(on));
@@ -584,6 +613,8 @@ function init() {
   showKeyHint();
   bindForm();
   renderFilters();
+  renderShelf();
+  updateGrowth();
   // Three.js is ~470KB: load it after first paint so text, fonts and motion appear immediately.
   setProgress(null);
   import('./scene.js').then(({ MuseumScene }) => {
@@ -599,7 +630,10 @@ function init() {
         tip.innerHTML = `<small>NO. ${esc(e.no)}</small><b>${esc(e.name)}</b>`;
         tip.classList.add('on');
       },
-      onRow: (r, n) => { $('#stage-number').textContent = 'GALLERY / ' + String(r + 1).padStart(2, '0') + ' · ' + String(n).padStart(2, '0'); },
+      onRow: (r, n) => {
+        $('#stage-number').textContent = 'GALLERY / ' + String(r + 1).padStart(2, '0') + ' · ' + String(n).padStart(2, '0');
+        $('#walk-pos').textContent = (r + 1) + ' / ' + n;
+      },
       onModel: renderInspector,
       onSnapshot: (exhibit, url) => { state.thumbs.set(exhibit.id, url); renderShelf(); updatePeek(); },
     });
