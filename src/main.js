@@ -472,7 +472,7 @@ const about = () => {
   return modal(`<p class="eyebrow">ABOUT THE MUSEUM</p><h2 id="dialog-title">无用，是一种认真的创作。</h2>
   <p>这里收藏那些为微不足道的困扰而诞生的郑重发明。每一位观众都可以贡献一个问题，由 Aholo Lux3D 把它变成可浏览、可下载的三维展品。</p>
   <p>点击展品，旋转欣赏，试用它的荒唐功能，再投票决定它有多没用。所有试用均为叙事互动。</p>
-  <p>当前 ${real} / ${exhibits.length} 件常设展品由 Aholo Lux3D 真实生成并缓存；没有模型来自手工建模。程序化概念模型只在模型载入前或离线时作为明确标注的回退。</p>
+  <p>当前 ${real} / ${exhibits.length} 件常设展品（策展种子）由 Aholo Lux3D 真实生成并缓存；没有展品三维资产来自手工建模。程序化概念模型只在模型载入前或离线时作为明确标注的回退。</p>
   <p class="muted">展品数量不是预先设定的：每收到一个新的问题，生成管线就多生产一件资产。这也是本馆可以持续增建的原因。</p>
   <a href="https://www.aholo3d.cn/hackathon" target="_blank" rel="noopener noreferrer">查看 Aholo 黑客松官网 ↗</a>`);
 };
