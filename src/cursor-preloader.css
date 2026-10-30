@@ -1,0 +1,115 @@
+/* ========================================================================
+   Preloader — Gate-opening entrance animation
+   ======================================================================== */
+
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: linear-gradient(to bottom, var(--ink) 0%, var(--ink) 48%, var(--grey-900) 100%);
+  display: grid;
+  place-items: center;
+  color: var(--pearl);
+  transition: transform .9s cubic-bezier(.76, 0, .24, 1);
+  transform-origin: top;
+  pointer-events: none;
+}
+
+.preloader.done {
+  transform: scaleY(0);
+}
+
+.preloader-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  animation: fade-in 1s cubic-bezier(.16, 1, .3, 1);
+}
+
+.preloader-mark {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: var(--pearl);
+}
+
+.preloader-name {
+  font-size: var(--text-xs);
+  letter-spacing: .3em;
+  font-weight: 600;
+  color: #9a9a9a;
+}
+
+.preloader-line {
+  display: block;
+  width: 120px;
+  height: 2px;
+  background: var(--grey-700);
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.preloader-line i {
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--accent);
+  animation: preload-line 1.4s cubic-bezier(.65, 0, .35, 1) infinite;
+}
+
+@keyframes preload-line {
+  0%, 100% { transform: translateX(-120%); }
+  50% { transform: translateX(280%); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+}
+
+/* ========================================================================
+   Stage curtain wipe + spotlight cone
+   ======================================================================== */
+
+.stage-curtain {
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+  transform: translateY(-100%);
+  pointer-events: none;
+  z-index: 40;
+  opacity: 0;
+}
+
+.stage-curtain.wipe {
+  animation: curtain-wipe 760ms cubic-bezier(.76, 0, .24, 1);
+}
+
+@keyframes curtain-wipe {
+  0% { transform: translateY(-100%); opacity: 1; }
+  48% { transform: translateY(0); opacity: 1; }
+  52% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(100%); opacity: 1; }
+}
+
+.spotlight-cone {
+  position: absolute;
+  top: -20%;
+  left: 50%;
+  width: 60%;
+  height: 80%;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255, 244, 224, 0.08) 0%, transparent 50%);
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: screen;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preloader, .preloader-inner, .preloader-line i, .stage-curtain {
+    animation: none !important;
+    transition: none !important;
+  }
+  .preloader.done { display: none; }
+}
