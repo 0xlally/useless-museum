@@ -21,6 +21,7 @@ test('official adapter: configuration errors, create, poll, GLB cache, audit and
     assert.equal(new Set(plans.map(p => p.title)).size, 6);
     assert.equal(new Set(plans.map(p => p.brief)).size, 6);
     assert.ok(loaded.planInstrument('键盘总会掉进海里').brief.includes('tailored to the human problem'));
+    assert.equal(loaded.planInstrument('键盘总会掉进海里').title, null);
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const base = `http://127.0.0.1:${server.address().port}`;
     await mkdir(path.join(dir, 'dist'));

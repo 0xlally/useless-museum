@@ -1,7 +1,7 @@
 import './style.css';
 import { exhibits, makeConcept } from './exhibits.js';
 import { $, $$, esc, icon, refreshIcons, toast, modal, closeModal, scrollBehavior } from './lib/dom.js';
-import { request, normalizeJob, isDone, isFailed, isActive } from './lib/api.js';
+import { request, normalizeJob, isDone, isFailed, isActive, formatElapsed } from './lib/api.js';
 import { thumbSvg } from './lib/thumbs.js';
 import { readJSON, writeJSON } from './lib/storage.js';
 
@@ -301,6 +301,27 @@ function setProgress(p) {
 }
 
 /* -------------------------------------------------------------- generation */
+const STAGE_TEXT = { queued: '排队中', processing: '生成中', succeeded: '已入藏', failed: '未完成', cancelled: '已取消' };
+/** Minimal status line: the running task survives a refresh because it is recovered from the server. */
+function renderTaskStatus() {
+  const el = $('#generation-status');
+  if (!el) return;
+  clearInterval(state.tickTimer);
+  const active = state.jobs.filter(isActive);
+  const failed = state.jobs.find(isFailed);
+  if (!active.length && !failed) { el.textContent = ''; return; }
+  const show = () => {
+    if (active.length) {
+      const j = active[0];
+      el.textContent = `任务进行中：${j.title || j.question || j.prompt} · ${STAGE_TEXT[j.status] || '处理中'} · 已等待 ${formatElapsed(j.createdAt)}（可离开本页，稍后回来仍在）。`;
+    } else if (failed) {
+      el.textContent = '生成未完成：' + (failed.error?.message || failed.error || '请调整描述后重试。');
+    }
+  };
+  show();
+  if (active.length) state.tickTimer = setInterval(show, 1000);
+}
+
 function applyJobs() {
   let refreshCurrent = false;
   for (const j of state.jobs) {
@@ -321,11 +342,7 @@ function applyJobs() {
   }
   renderFilters();
   renderShelf();
-  const failedJob = state.jobs.find(isFailed);
-  if (failedJob) {
-    const status = $('#generation-status');
-    if (status) status.textContent = '生成未完成：' + (failedJob.error?.message || failedJob.error || '请调整描述后重试。');
-  }
+  renderTaskStatus();
   if (refreshCurrent) choose(state.current, { updateHash: false });
   const linked = hashId();
   if (linked && state.current.id !== linked && findExhibit(linked)) choose(findExhibit(linked), { updateHash: false });
@@ -388,7 +405,6 @@ function bindForm() {
       state.jobs.unshift(job);
       applyJobs();
       schedulePoll();
-      status.textContent = '任务已提交，编号：' + job.id + '。可继续逛展，刷新后可恢复任务。';
       toast('无用发明已立项。请允许精密的荒唐花一点时间。');
     } catch (e) {
       status.textContent = '生成未提交：' + e.message;

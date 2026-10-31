@@ -95,7 +95,7 @@ export function planInstrument(question) {
     [/周一|星期一|monday/i, '周一缓冲器', 'a chunky ivory tabletop shock absorber with three stacked brass accordion bellows, two curved support arms, a red enamel release button and a heavy rounded base'],
   ];
   const found = concepts.find(([pattern]) => pattern.test(question));
-  return found ? { title: found[1], brief: found[2] } : { title: '小事转换仪', brief: 'invent a distinct tangible mechanical solution tailored to the human problem, with a clear functional metaphor, one coherent connected silhouette, an expressive main mechanism, a stable base and one tactile adjustment control; choose your own silhouette rather than a generic ring' };
+  return found ? { title: found[1], brief: found[2] } : { title: null, brief: 'invent a distinct tangible mechanical solution tailored to the human problem, with a clear functional metaphor, one coherent connected silhouette, an expressive main mechanism, a stable base and one tactile adjustment control; choose your own silhouette rather than a generic ring' };
 }
 function publicJob(j) {
   const ext = j.ext || 'glb';
