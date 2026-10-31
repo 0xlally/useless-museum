@@ -2,8 +2,6 @@
 
 为一个从来不存在的问题，造一件看起来很专业的产品。
 
-> **技术主线**：展品来自观众的每一句话，数量无界；手工建模的产能是线性的。Aholo Lux3D 把"一句话 → 一件可旋转、可下载的 GLB"变成生产流程，是"无限增长的博物馆"成立的前提，而不是装饰。完整论证见 [Lux3D 技术栈论证](docs/lux3d-stack.md)。
-
 ## 启动
 
 需要 Node.js 22+。
@@ -25,9 +23,8 @@ npm start
 - 需求输入 → 服务端造型提示词 → 真实 Lux3D G1 文生 3D → 异步查询 → 缓存 GLB → 展柜入藏。
 - 生成失败提示、同一时间单任务、刷新恢复任务、GLB 下载、来源档案。
 - 服务端持久化提示词、官方任务编号、状态变化、缓存记录、SHA-256；密钥不返回前端。
-- 浏览版资产：Meshopt 几何压缩 + WebP 贴图 + 1024px 贴图，单件约 0.6–0.8 MB；原始 GLB 保留用于下载。
+- 浏览版资产：Meshopt 几何压缩 + WebP 贴图 + 1024px 贴图，单件约 0.4–0.9 MB；原始 GLB 保留用于下载。
 - 每件展品的「藏品档案」展示官方任务号、原始字节数、缓存时间与完整 SHA-256；`/api/provenance` 提供同一组机器可读证据。
-- 藏品卡片使用实际模型渲染图（`public/thumbs/`），不再用手绘示意图冒充真实资产。
 
 ## 数据与备份
 
@@ -50,10 +47,9 @@ npm run verify:assets    # 重新校验缓存 GLB 并写 data/provenance.json
 
 ```powershell
 npm run optimize:models  # 原始 GLB → data/models/web/（Meshopt + WebP，约 10x 压缩）
-npm run thumbs           # 从真实模型渲染六张藏品卡片图
 ```
 
-`optimize:models` 与 `thumbs` 需要本地服务与已缓存模型；它们是构建期工具，首次克隆后已包含生成结果，可直接展示。
+`optimize:models` 需要已缓存模型；它是构建期工具，首次克隆后已包含生成结果，可直接展示。
 
 ## 参赛
 

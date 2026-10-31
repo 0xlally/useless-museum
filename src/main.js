@@ -1,7 +1,7 @@
 import './style.css';
 import { exhibits, makeConcept } from './exhibits.js';
 import { $, $$, esc, icon, refreshIcons, toast, modal, closeModal, scrollBehavior } from './lib/dom.js';
-import { request, normalizeJob, isDone, isFailed, isActive, STATUS_LABEL, formatElapsed } from './lib/api.js';
+import { request, normalizeJob, isDone, isFailed, isActive } from './lib/api.js';
 import { thumbSvg } from './lib/thumbs.js';
 import { readJSON, writeJSON } from './lib/storage.js';
 
@@ -170,10 +170,8 @@ function renderFilters() {
 }
 
 function cardImage(e) {
-  if (e.thumb && e.modelUrl) return `<img src="${e.thumb}" alt="" loading="eager" decoding="async">`;
   const snap = state.thumbs.get(e.id);
-  if (snap) return `<img src="${snap}" alt="" loading="lazy" decoding="async">`;
-  return thumbSvg(e.kind);
+  return snap ? `<img src="${snap}" alt="" loading="lazy" decoding="async">` : thumbSvg(e.kind);
 }
 
 function renderShelf() {
@@ -303,19 +301,6 @@ function setProgress(p) {
 }
 
 /* -------------------------------------------------------------- generation */
-/** The growth ledger is derived from the same records as the archive, never from a hand-written number. */
-function updateGrowth() {
-  const total = exhibits.length;
-  const real = exhibits.filter(e => e.modelUrl).length;
-  const pad = n => String(n).padStart(2, '0');
-  const set = (id, value) => { const el = $(id); if (el) el.textContent = value; };
-  set('#stat-exhibits', pad(total));
-  set('#stat-real', pad(real));
-  set('#stat-tasks', pad(state.jobs.length));
-  set('#growth-proof', `${real} / ${total}`);
-  $('#growth')?.classList.toggle('incomplete', real < total);
-}
-
 function applyJobs() {
   let refreshCurrent = false;
   for (const j of state.jobs) {
@@ -336,52 +321,14 @@ function applyJobs() {
   }
   renderFilters();
   renderShelf();
-  updateGrowth();
+  const failedJob = state.jobs.find(isFailed);
+  if (failedJob) {
+    const status = $('#generation-status');
+    if (status) status.textContent = '生成未完成：' + (failedJob.error?.message || failedJob.error || '请调整描述后重试。');
+  }
   if (refreshCurrent) choose(state.current, { updateHash: false });
   const linked = hashId();
   if (linked && state.current.id !== linked && findExhibit(linked)) choose(findExhibit(linked), { updateHash: false });
-  renderJobs();
-}
-
-const PIPE = ['提交任务', '排队', '生成', '缓存模型', '入藏'];
-function pipeStage(j) {
-  if (j.modelUrl) return 5;
-  if (j.status === 'succeeded') return 3;
-  if (j.status === 'processing') return 2;
-  if (j.status === 'queued') return 1;
-  return 0;
-}
-function pipelineMarkup(j) {
-  const at = pipeStage(j), bad = isFailed(j);
-  return `<ol class="pipe" aria-label="生成进度">${PIPE.map((t, i) => {
-    const cls = bad && i === at ? 'bad' : i < at ? 'done' : i === at ? 'now' : '';
-    return `<li class="${cls}"><i></i><span>${t}</span></li>`;
-  }).join('')}</ol>`;
-}
-
-function jobMarkup(j) {
-  const status = STATUS_LABEL[j.status] || j.status;
-  const active = isActive(j);
-  const action = j.modelUrl
-    ? `<button type="button" class="btn btn-outline" data-job="${esc(j.id)}">查看生成展品 ${icon('ArrowUpRight')}</button>`
-    : active ? `<span class="job-wait"><i class="spinner" aria-hidden="true"></i><span data-elapsed="${esc(j.createdAt || '')}">${j.createdAt ? formatElapsed(j.createdAt) : ''}</span></span>`
-      : `<span class="job-wait">${isFailed(j) ? '生成未完成' : '处理中'}</span>`;
-  return `<div class="job"><div><span class="pill ${esc(j.status)}">${esc(status)}</span><small> · LUX3D</small><p>${esc(j.title ? j.title + ' · ' : '')}${esc(j.question || j.prompt)}</p><code>${j.officialTaskId ? 'LUX3D #' + esc(j.officialTaskId) + ' · ' + esc(j.version || 'G1') + ' · ' : ''}${esc(j.id)}</code>${pipelineMarkup(j)}${j.error ? `<p class="error">${esc(j.error?.message || j.error)}</p>` : ''}</div>${action}</div>`;
-}
-
-function renderJobs() {
-  $('#archive').hidden = state.jobs.length === 0;
-  $('#jobs').innerHTML = state.jobs.map(jobMarkup).join('');
-  $$('[data-job]').forEach(b => {
-    b.onclick = () => { choose(findExhibit(b.dataset.job)); $('#collection').scrollIntoView({ behavior: scrollBehavior() }); };
-  });
-  clearInterval(state.tickTimer);
-  if (state.jobs.some(isActive)) {
-    state.tickTimer = setInterval(() => {
-      $$('[data-elapsed]').forEach(el => { if (el.dataset.elapsed) el.textContent = formatElapsed(el.dataset.elapsed); });
-    }, 1000);
-  }
-  refreshIcons();
 }
 
 function schedulePoll() {
@@ -472,8 +419,7 @@ const about = () => {
   return modal(`<p class="eyebrow">ABOUT THE MUSEUM</p><h2 id="dialog-title">无用，是一种认真的创作。</h2>
   <p>这里收藏那些为微不足道的困扰而诞生的郑重发明。每一位观众都可以贡献一个问题，由 Aholo Lux3D 把它变成可浏览、可下载的三维展品。</p>
   <p>点击展品，旋转欣赏，试用它的荒唐功能，再投票决定它有多没用。所有试用均为叙事互动。</p>
-  <p>当前 ${real} / ${exhibits.length} 件常设展品（策展种子）由 Aholo Lux3D 真实生成并缓存；没有展品三维资产来自手工建模。程序化概念模型只在模型载入前或离线时作为明确标注的回退。</p>
-  <p class="muted">展品数量不是预先设定的：每收到一个新的问题，生成管线就多生产一件资产。这也是本馆可以持续增建的原因。</p>
+  <p>当前 ${real} / ${exhibits.length} 件常设展品由 Aholo Lux3D 真实生成并缓存；程序化模型仅在载入失败时作为明确标注的回退。</p>
   <a href="https://www.aholo3d.cn/hackathon" target="_blank" rel="noopener noreferrer">查看 Aholo 黑客松官网 ↗</a>`);
 };
 
@@ -488,7 +434,7 @@ function bindSearch() {
 
 function bindRail() {
   const links = $$('[data-rail]');
-  const targets = { top: $('.intro'), collection: $('#collection'), growth: $('#growth'), donation: $('#donation') };
+  const targets = { top: $('.intro'), collection: $('#collection'), donation: $('#donation') };
   const io = new IntersectionObserver(entries => {
     for (const en of entries) if (en.isIntersecting) {
       const key = Object.keys(targets).find(k => targets[k] === en.target);
@@ -614,7 +560,6 @@ function init() {
   bindForm();
   renderFilters();
   renderShelf();
-  updateGrowth();
   // Three.js is ~470KB: load it after first paint so text, fonts and motion appear immediately.
   setProgress(null);
   import('./scene.js').then(({ MuseumScene }) => {
