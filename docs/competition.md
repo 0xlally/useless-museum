@@ -93,7 +93,7 @@ G1 返回 ZIP、GLB；请求 PLY 时另外返回 PLY。G1-Turbo 返回指定格�
 
 配置参考 [环境变量示例](../.env.example)。`LUX3D_API_KEY` 只在服务器读取，禁止 `VITE_*`、前端 localStorage、客户端 bundle 或公开仓库。`LUX3D_BASE_URL` 默认为官方网关；覆盖值仅由运维配置。模型域名采用允许列表且拒绝重定向，不允许客户端提交任意下载 URL。下载上限 180MB。
 
-开发时由 Vite 将 `/api` 和 `/models` 代理到 `http://127.0.0.1:8787`。运行 `node server.mjs`；服务端会读取项目 `.env`。前端构建后，此服务也可托管 `dist`，静态文件限制在构建目录内，拒绝隐藏文件和越界路径。默认只监听 127.0.0.1；公开部署前需添加用户访问控制和费用配额，并通过 HTTPS 反向代理部署。当前实现为本机单进程演示，不支持多个进程同时写同一数据目录。
+开发时由 Vite 将 `/api` 和 `/models` 代理到 `http://127.0.0.1:8787`，并在转发前把 `Origin` 规范化为 API 源，避免 5173 页面触发跨站拒绝；自定义端口、隧道或反向代理来源需加入 `LUX3D_ALLOWED_ORIGINS`。运行 `node server.mjs`；服务端会读取项目 `.env`。前端构建后，此服务也可托管 `dist`，静态文件限制在构建目录内，拒绝隐藏文件和越界路径。默认只监听 127.0.0.1；公开部署前需添加用户访问控制和费用配额，并通过 HTTPS 反向代理部署。当前实现为本机单进程演示，不支持多个进程同时写同一数据目录。
 
 验证命令：`node --check server.mjs`、`node --test server.test.mjs`、`node scripts/verify-assets.mjs`、`npm run build`。集成测试使用虚假凭据和官方格式 mock，验证配置错误、鉴权字段、创建/轮询、null 产物项、GLB 缓存、SHA-256、provenance、恢复列表、并发、跨域、隐藏路径与无密钥审计；它不访问官方、不计费。
 

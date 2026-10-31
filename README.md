@@ -12,7 +12,7 @@ npm run build
 npm start
 ```
 
-浏览器打开 http://127.0.0.1:8787 。开发时用 `npm run dev`，浏览器打开 http://127.0.0.1:5173（同时启动 API 8787 与 Vite 5173）。
+浏览器打开 http://127.0.0.1:8787 。开发时用 `npm run dev`，浏览器打开 http://127.0.0.1:5173（同时启动 API 8787 与 Vite 5173）。Vite 代理会规范化 `Origin`；若换端口、走隧道或反向代理，把浏览器来源加入 `LUX3D_ALLOWED_ORIGINS`。
 
 当前本机已配置服务器凭据。换机器时复制 `.env.example` 为 `.env`，填入 `LUX3D_API_KEY`。凭据不要提交到代码库或发送到浏览器。默认只监听本机；公开部署时设置 HOST=0.0.0.0，使用可信反向代理与 HTTPS，并限制调用权限和额度。
 

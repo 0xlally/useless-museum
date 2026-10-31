@@ -53,6 +53,12 @@ test('official adapter: configuration errors, create, poll, GLB cache, audit and
       return originalFetch(url, init);
     };
     assert.equal((await post(' ')).status, 400);
+    const devOrigin = await call('/api/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'http://127.0.0.1:5173' }, body: JSON.stringify({ prompt: 'x' }) });
+    assert.equal(devOrigin.status, 400);
+    assert.equal((await devOrigin.json()).error.code, 'INVALID_PROMPT');
+    const crossOrigin = await call('/api/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example' }, body: JSON.stringify({ prompt: 'x' }) });
+    assert.equal(crossOrigin.status, 403);
+    assert.equal((await crossOrigin.json()).error.code, 'ORIGIN_REJECTED');
     const created = await post('a brass ring shadow limiter'); assert.equal(created.status, 202);
     const job = await created.json(); assert.equal(job.status, 'queued'); assert.equal(job.modelUrl, null);
     assert.equal((await post('a duplicate job')).status, 429);

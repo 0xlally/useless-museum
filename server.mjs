@@ -188,11 +188,24 @@ async function serveFile(res, file, root, attachment = false, headers = {}) {
   const bytes = await readFile(fileReal);
   res.writeHead(200, { 'Content-Type': mime[path.extname(fileReal)] || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', ...(attachment ? { 'Content-Disposition': 'attachment; filename="model.glb"' } : {}), ...headers }); res.end(bytes);
 }
+const LOOPBACK = /^(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/;
+function originAllowed(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  let parsed; try { parsed = new URL(origin); } catch { return false; }
+  const host = req.headers.host || '';
+  if (parsed.host === host) return true;
+  // Explicit allowlist for a tunnel, alternate dev port or a reverse proxy that rewrites Host.
+  const configured = (process.env.LUX3D_ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (configured.includes(origin)) return true;
+  // Local Vite dev server: the page runs on 5173 and proxies /api to this loopback server.
+  return LOOPBACK.test(host) && LOOPBACK.test(parsed.host) && parsed.protocol === 'http:' && parsed.port === '5173';
+}
 export const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     // Same-origin requests only. Never expose the credentialled creation endpoint via CORS.
-    if (req.headers.origin && req.headers.origin !== `http://${req.headers.host}` && req.headers.origin !== `https://${req.headers.host}`) throw fail(403, 'ORIGIN_REJECTED', '不允许跨站请求。');
+    if (!originAllowed(req)) throw fail(403, 'ORIGIN_REJECTED', '不允许跨站请求。');
     if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { ok: true, configured: configured(), provider: 'Aholo Lux3D', adapter: 'official-openapi-v2', pollAfterMs: 6000 });
     if (req.method === 'GET' && url.pathname === '/api/generations') return json(res, 200, { generations: [...jobs.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(publicJob) });
     if (req.method === 'GET' && url.pathname === '/api/provenance') {
