@@ -95,7 +95,18 @@ export function planInstrument(question) {
     [/周一|星期一|monday/i, '周一缓冲器', 'a chunky ivory tabletop shock absorber with three stacked brass accordion bellows, two curved support arms, a red enamel release button and a heavy rounded base'],
   ];
   const found = concepts.find(([pattern]) => pattern.test(question));
-  return found ? { title: found[1], brief: found[2] } : { title: null, brief: 'invent a distinct tangible mechanical solution tailored to the human problem, with a clear functional metaphor, one coherent connected silhouette, an expressive main mechanism, a stable base and one tactile adjustment control; choose your own silhouette rather than a generic ring' };
+  return found ? { title: found[1], brief: found[2] } : { title: null, brief: null };
+}
+/** An unmatched request keeps its own wording as the title, never a generic label like "small-thing converter". */
+export function titleFor(question, plan, explicitTitle) {
+  return explicitTitle?.trim() || plan.title || question.slice(0, 40);
+}
+export function promptFor(question, plan) {
+  if (plan.title) {
+    return `Create one whimsical absurd scientific instrument, a museum-quality collectible prop inspired by this human problem: ${JSON.stringify(question)}. Specific design: ${plan.brief}. Antique brushed brass, warm ivory enamel, subtle dark patina, physically based materials. The instrument should feel poetic, curious and delightfully impractical. One connected freestanding object only, full object visible, centered, isolated, no room, no environment, no floor plane, no human, no text, no lettering, no logos, no floating disconnected parts. High quality watertight 3D mesh suitable for an interactive browser exhibit.`;
+  }
+  // Unmatched requests: model the named object itself, not an abstract brass instrument.
+  return `Create one physically coherent, museum-quality 3D model that literally realizes this request: ${JSON.stringify(question)}. Interpret the request literally: build the named object itself — the appliance, machine, device or structure the request mentions — and apply its absurd or impossible feature directly to that object, exaggerating proportions where the idea calls for it. Do not substitute an unrelated abstract brass instrument. One connected freestanding object only, full object visible, centered, isolated, no room, no environment, no floor plane, no human, no text, no lettering, no logos, no floating disconnected parts. Believable natural materials appropriate to the object with subtle realistic wear, PBR materials, high quality watertight mesh.`;
 }
 function publicJob(j) {
   const ext = j.ext || 'glb';
@@ -227,10 +238,9 @@ export const server = http.createServer(async (req, res) => {
         if (input.title !== undefined && (typeof input.title !== 'string' || input.title.trim().length > 80)) throw fail(400, 'INVALID_TITLE', 'title 须为不超过 80 字符的文字。');
         const question = input.question?.trim() || input.prompt.trim();
         const plan = planInstrument(question);
-        const title = input.title?.trim() || plan.title;
-        const shape = plan.brief;
+        const title = titleFor(question, plan, input.title);
         // Rule-based art direction, not an LLM. Explicit question preserves caller art direction.
-        const prompt = input.question?.trim() ? input.prompt.trim() : `Create one whimsical absurd scientific instrument, a museum-quality collectible prop inspired by this human problem: ${JSON.stringify(question)}. Specific design: ${shape}. Antique brushed brass, warm ivory enamel, subtle dark patina, physically based materials. The instrument should feel poetic, curious and delightfully impractical. One connected freestanding object only, full object visible, centered, isolated, no room, no environment, no floor plane, no human, no text, no lettering, no logos, no floating disconnected parts. High quality watertight 3D mesh suitable for an interactive browser exhibit.`;
+        const prompt = input.question?.trim() ? input.prompt.trim() : promptFor(question, plan);
         const version = process.env.LUX3D_VERSION || 'G1';
         if (!['G1', 'G1-Turbo'].includes(version)) throw fail(503, 'INVALID_CONFIGURATION', 'LUX3D_VERSION 只能是 G1 或 G1-Turbo。');
         const id = randomUUID();

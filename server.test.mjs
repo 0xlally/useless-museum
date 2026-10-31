@@ -20,8 +20,12 @@ test('official adapter: configuration errors, create, poll, GLB cache, audit and
     const plans = ['影子', '哈欠', '咖啡', '灰尘', '时间', '周一'].map(q => loaded.planInstrument(q));
     assert.equal(new Set(plans.map(p => p.title)).size, 6);
     assert.equal(new Set(plans.map(p => p.brief)).size, 6);
-    assert.ok(loaded.planInstrument('键盘总会掉进海里').brief.includes('tailored to the human problem'));
-    assert.equal(loaded.planInstrument('键盘总会掉进海里').title, null);
+    const fallback = loaded.planInstrument('给我一个能装进大象的冰箱');
+    assert.equal(fallback.title, null);
+    assert.equal(fallback.brief, null);
+    assert.equal(loaded.titleFor('给我一个能装进大象的冰箱', fallback, undefined), '给我一个能装进大象的冰箱');
+    assert.ok(loaded.promptFor('给我一个能装进大象的冰箱', fallback).includes('literally realizes'));
+    assert.ok(loaded.promptFor('影子', plans[0]).includes('Antique brushed brass'));
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const base = `http://127.0.0.1:${server.address().port}`;
     await mkdir(path.join(dir, 'dist'));
