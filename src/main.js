@@ -8,6 +8,7 @@ import { readJSON, writeJSON } from './lib/storage.js';
 const CATEGORIES = ['全部藏品', '生活小事', '时间与空间', '情绪与日常', '观众提案'];
 const VOTE_LABELS = ['有点多余', '毫无用处', '无用之巅'];
 const MAX_NEED = 300;
+const EXAMPLE_NEEDS = [...exhibits.slice(0, 6).map(e => e.question), '给我一个能装进大象的冰箱'];
 
 const state = {
   current: exhibits[0],
@@ -380,8 +381,8 @@ function bindForm() {
   const update = () => { $('#chars').textContent = need.value.length + ' / ' + MAX_NEED; need.removeAttribute('aria-invalid'); };
   need.oninput = update;
   $('#inspire').onclick = () => {
-    const pool = exhibits.slice(0, 6).filter(e => e.question !== need.value);
-    need.value = pool[Math.floor(Math.random() * pool.length)].question;
+    const pool = EXAMPLE_NEEDS.filter(q => q !== need.value);
+    need.value = pool[Math.floor(Math.random() * pool.length)];
     update();
   };
   need.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') $('#generate-form').requestSubmit(); });
