@@ -85,28 +85,17 @@ async function upstream(endpoint, body) {
   return payload.d;
 }
 const statuses = { 0: 'queued', 1: 'processing', 3: 'succeeded', 4: 'failed', 6: 'cancelled' };
-export function planInstrument(question) {
-  const concepts = [
-    [/影子|shadow/i, '影子限长器', 'an upright open brass annular measuring frame on an oval base, one sliding stop, a central fine pointer and a small crank'],
-    [/哈欠|困|睡|yawn|sleep/i, '哈欠收集瓶', 'a squat ivory enamel pressure vessel with a wide flared brass funnel, a curved neck, a side bellows and one round pressure gauge'],
-    [/咖啡|coffee/i, '咖啡回温引擎', 'a miniature horizontal copper boiler on two short feet, an integrated cup cradle, three curved brass cooling fins and one oversized rotary dial'],
-    [/灰尘|dust/i, '灰尘编目机', 'a low rectangular brass cabinet with six tiny drawer fronts, a translucent collection dome, a short intake trumpet and a side hand wheel'],
-    [/时间|拖延|迟到|time|late/i, '时间折叠仪', 'a tilted sculptural hourglass cage between two ivory triangular plates, a spiral brass axle and a large asymmetrical side lever on a compact plinth'],
-    [/周一|星期一|monday/i, '周一缓冲器', 'a chunky ivory tabletop shock absorber with three stacked brass accordion bellows, two curved support arms, a red enamel release button and a heavy rounded base'],
-  ];
-  const found = concepts.find(([pattern]) => pattern.test(question));
-  return found ? { title: found[1], brief: found[2] } : { title: null, brief: null };
+/** Strip only polite request wrappers; the rest of the user's wording becomes the exhibit title. */
+const REQUEST_PREFIX = /^(?:请)?(?:给我|帮我|让我|我想要|我要|能不能|能否|可不可以|可以|怎么|如何|怎样|麻烦)(?:一个|一件|一台|一款|个|件|台|款)?\s*/;
+export function titleFor(question, explicitTitle) {
+  if (explicitTitle?.trim()) return explicitTitle.trim();
+  const raw = question.trim();
+  const stripped = raw.replace(REQUEST_PREFIX, '').replace(/[？?。.!！\s]+$/g, '').trim();
+  return (stripped || raw).slice(0, 40);
 }
-/** An unmatched request keeps its own wording as the title, never a generic label like "small-thing converter". */
-export function titleFor(question, plan, explicitTitle) {
-  return explicitTitle?.trim() || plan.title || question.slice(0, 40);
-}
-export function promptFor(question, plan) {
-  if (plan.title) {
-    return `Create one whimsical absurd scientific instrument, a museum-quality collectible prop inspired by this human problem: ${JSON.stringify(question)}. Specific design: ${plan.brief}. Antique brushed brass, warm ivory enamel, subtle dark patina, physically based materials. The instrument should feel poetic, curious and delightfully impractical. One connected freestanding object only, full object visible, centered, isolated, no room, no environment, no floor plane, no human, no text, no lettering, no logos, no floating disconnected parts. High quality watertight 3D mesh suitable for an interactive browser exhibit.`;
-  }
-  // Unmatched requests: model the named object itself, not an abstract brass instrument.
-  return `Create one physically coherent, museum-quality 3D model that literally realizes this request: ${JSON.stringify(question)}. Interpret the request literally: build the named object itself — the appliance, machine, device or structure the request mentions — and apply its absurd or impossible feature directly to that object, exaggerating proportions where the idea calls for it. Do not substitute an unrelated abstract brass instrument. One connected freestanding object only, full object visible, centered, isolated, no room, no environment, no floor plane, no human, no text, no lettering, no logos, no floating disconnected parts. Believable natural materials appropriate to the object with subtle realistic wear, PBR materials, high quality watertight mesh.`;
+/** Minimal wrapper around the visitor's own words: no fixed object, material or silhouette. */
+export function promptFor(question) {
+  return `A single physically coherent, museum-quality 3D model that literally realizes this request: ${JSON.stringify(question)}. Build the object the request names and apply its absurd or impossible feature directly to that object; let the request determine the silhouette, mechanism and materials. One connected freestanding object only, full object visible, centered, isolated, no room, no environment, no floor plane, no human, no text, no lettering, no logos, no floating disconnected parts. Believable natural materials appropriate to the object, subtle realistic wear, PBR materials, high quality watertight mesh.`;
 }
 function publicJob(j) {
   const ext = j.ext || 'glb';
@@ -237,10 +226,9 @@ export const server = http.createServer(async (req, res) => {
         if (input.question !== undefined && (typeof input.question !== 'string' || input.question.trim().length > 2000)) throw fail(400, 'INVALID_QUESTION', 'question 须为不超过 2000 字符的文字。');
         if (input.title !== undefined && (typeof input.title !== 'string' || input.title.trim().length > 80)) throw fail(400, 'INVALID_TITLE', 'title 须为不超过 80 字符的文字。');
         const question = input.question?.trim() || input.prompt.trim();
-        const plan = planInstrument(question);
-        const title = titleFor(question, plan, input.title);
-        // Rule-based art direction, not an LLM. Explicit question preserves caller art direction.
-        const prompt = input.question?.trim() ? input.prompt.trim() : promptFor(question, plan);
+        const title = titleFor(question, input.title);
+        // Rule-based wrapper, not an LLM. The visitor's own wording drives the object.
+        const prompt = input.question?.trim() ? input.prompt.trim() : promptFor(question);
         const version = process.env.LUX3D_VERSION || 'G1';
         if (!['G1', 'G1-Turbo'].includes(version)) throw fail(503, 'INVALID_CONFIGURATION', 'LUX3D_VERSION 只能是 G1 或 G1-Turbo。');
         const id = randomUUID();
